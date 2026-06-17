@@ -2,6 +2,13 @@
 
 A macOS (SwiftUI) app that lists **your** cron jobs and launchd `.plist` files, with what each one does, its schedule, and its live state.
 
+![LaunchInspector demo](docs/demo.gif)
+
+## Requirements
+
+- macOS 14 (Sonoma) or later
+- Swift 6.0 / Xcode 16 (to build)
+
 ## Features
 
 - **Focused scan** — user crontab + personal and global LaunchAgents/Daemons. Apple's `/System` daemons are ignored.
