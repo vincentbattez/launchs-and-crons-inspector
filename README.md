@@ -1,85 +1,102 @@
 # LaunchInspector
 
-App macOS (SwiftUI) qui liste **tes** crons et `.plist` launchd, avec le détail de ce qu'ils font, leur planification et leur état.
+A macOS (SwiftUI) app that lists **your** cron jobs and launchd `.plist` files, with what each one does, its schedule, and its live state.
 
-## Fonctionnalités en bref
+## Features
 
-- **Scan ciblé** : crons utilisateur + LaunchAgents/Daemons perso et globaux ; les daemons Apple de `/System` sont ignorés.
-- **Détail par job** : commande complète, planification traduite en clair, et état multi-dimensions (activé, chargé, en cours, nombre d'exécutions).
-- **Métadonnées** : date d'installation, session de chargement, version de l'`.app`, service Mach déclencheur.
-- **Organisation** : groupes repliables, renommage + description, masquage de lignes, affichage/masquage de colonnes (clic droit sur l'en-tête), tri par colonne.
-- **Actions** (clic droit, avec confirmation) : **Activer / Désactiver** et **Supprimer** n'importe quel item ; **Corbeille** intégrée pour **restaurer** — un seul mot de passe admin pour les éléments `/Library`.
-- **Recherche & filtres** : barre de recherche (nom, commande, projet), filtre par type, « activés uniquement ».
-- **Repères visuels** : pastille de statut colorée, jobs dormants grisés.
-- **Rafraîchissement auto** toutes les 10 s (+ ⟳ / ⌘R).
-- **Config éditable par Claude Code** : noms, descriptions et groupes remplis automatiquement (prompts prêts à l'emploi plus bas).
-- **Modes headless** : `--dump` (liste texte) et `--dump-json` (export complet).
+- **Focused scan** — user crontab + personal and global LaunchAgents/Daemons. Apple's `/System` daemons are ignored.
+- **Per-job detail** — full command, schedule translated to plain language, and multi-dimensional state (enabled, loaded, running, run count).
+- **Metadata** — install date, load session, `.app` version, triggering Mach service.
+- **Organization** — collapsible groups, rename + describe, hide rows, show/hide columns (right-click the header), sort by column.
+- **Actions** (right-click, with confirmation) — **Enable/Disable** and **Delete** any item; built-in **Trash** to **restore**. A single admin password for `/Library` items.
+- **Search & filters** — search bar (name, command, project), filter by type, "enabled only".
+- **Visual cues** — colored status dot, dormant jobs dimmed.
+- **Auto-refresh** every 10s (+ ⟳ / ⌘R).
+- **Claude Code-editable config** — names, descriptions, and groups filled in automatically (ready-to-use prompts below).
+- **Headless modes** — `--dump` (text list) and `--dump-json` (full export).
 
-## Ce qu'elle scanne
+## What it scans
 
-Portée « seulement les miens » — les daemons Apple de `/System/Library` sont volontairement ignorés :
+Scope is "mine only" — Apple daemons in `/System/Library` are intentionally skipped:
 
 | Source | Type |
 |---|---|
-| `crontab -l` (utilisateur) | Cron |
-| `~/Library/LaunchAgents` | LaunchAgent (utilisateur) |
+| `crontab -l` (user) | Cron |
+| `~/Library/LaunchAgents` | LaunchAgent (user) |
 | `/Library/LaunchAgents` | LaunchAgent (global) |
 | `/Library/LaunchDaemons` | LaunchDaemon (global) |
 
-## Pour chaque job
+## Per-job detail
 
-- **Nom / Label** et, pour les `.plist` en symlink, le **projet** d'origine (ex. `auto-switch-mic`)
-- **Ce que ça fait** : programme + arguments + ligne de commande complète
-- **Planification** traduite en clair : `StartInterval`, `StartCalendarInterval` (dict ou tableau), `WatchPaths`, `KeepAlive`, `RunAtLoad`, et expressions cron
-- **État** en plusieurs dimensions distinctes (pas un seul booléen) :
-  - **Activé / désactivé** — lu dans la base d'overrides launchd (`launchctl print-disabled`), pas seulement la clé `Disabled` du fichier
-  - **Chargé** — présence dans `launchctl list` ou `launchctl print` (daemons compris, sans root)
-  - **En cours** — PID réel + dernier code de sortie
-  - **Activité** — nombre d'exécutions depuis le chargement (`runs` de `launchctl print`), pour les agents **et** les daemons sans root. Approxime « a-t-il tourné cette session » : `0` = jamais, `26×` = 26 fois. ⚠️ launchd n'expose **pas** d'horodatage de dernière exécution — c'est un compteur, pas une date. Indisponible pour les crons.
-- **Métadonnées** :
-  - **Installé le** — date de création du `.plist` (≈ date d'installation ; approximative — une restauration la réinitialise)
-  - **Session de chargement** — `LimitLoadToSessionType` (Aqua, LoginWindow, Système…)
-  - **Version de l'app** — `CFBundleShortVersionString` quand le programme vit dans un `.app`
-  - **Service Mach** — quand le job est « à la demande », le service qui le déclenche (`MachServices`)
-- **Contenu brut** du fichier (les `.plist` binaires sont convertis en XML pour l'affichage)
+- **Name / Label**, and for symlinked `.plist` files the originating **project** (e.g. `auto-switch-mic`).
+- **What it runs** — program, arguments, full command line.
+- **Schedule** in plain language: `StartInterval`, `StartCalendarInterval` (dict or array), `WatchPaths`, `KeepAlive`, `RunAtLoad`, and cron expressions.
+- **State** across distinct dimensions (not a single boolean):
+  - **Enabled/disabled** — read from the launchd overrides database (`launchctl print-disabled`), not just the file's `Disabled` key.
+  - **Loaded** — present in `launchctl list` or `launchctl print` (daemons included, without root).
+  - **Running** — real PID + last exit code.
+  - **Activity** — run count since load (`runs` from `launchctl print`), for agents **and** daemons without root. Approximates "did it run this session": `0` = never, `26×` = 26 times. launchd does **not** expose a last-run timestamp — this is a counter, not a date. Unavailable for crons.
+- **Metadata** — install date (`.plist` creation time, approximate), load session (`LimitLoadToSessionType`), app version (`CFBundleShortVersionString` when the program lives in an `.app`), Mach service (the on-demand trigger from `MachServices`).
+- **Raw file contents** — binary `.plist` files are converted to XML for display.
 
-## Organiser : groupes, renommage, descriptions, masquage
+## Organize
 
-- **Groupes repliables** : clic droit sur une ou plusieurs lignes → *Déplacer vers ▸* (groupe existant, nouveau groupe, ou aucun). Chaque groupe se replie/déplie ; l'état est mémorisé.
-- **Renommer + décrire** : volet détail → *Personnalisation* (nom affiché + description libre). Modifiable aussi par Claude Code dans le fichier de config.
-- **Masquer (lignes)** : clic droit → *Masquer* déplace le job dans la section repliée **Masqués** tout en bas.
-- **Afficher/masquer des colonnes** : clic droit sur l'**en-tête** du tableau → coche/décoche les colonnes (et réordonne-les). Pratique vu le nombre de colonnes (Type, Portée, Planification, État, Activité, Installé, Version…). *(Choix non persistés entre deux lancements pour l'instant.)*
-- **Tri** : clic sur un en-tête de colonne — y compris **Activité**, **Installé** (par date) et **Version**.
-- **Dormants grisés** : un job non démarré (launchd sans PID, cron désactivé) est affiché en opacité réduite ; les jobs en cours ressortent.
-- **Rafraîchissement** : statut re-scanné automatiquement toutes les 10 s (+ bouton ⟳ / ⌘R).
+- **Collapsible groups** — right-click one or more rows → *Move to ▸* (existing group, new group, or none). Each group collapses/expands; state is remembered.
+- **Rename + describe** — detail pane → *Customization* (display name + free-form description). Also editable by Claude Code in the config file.
+- **Hide rows** — right-click → *Hide* moves the job to the collapsed **Hidden** section at the bottom.
+- **Show/hide columns** — right-click the table **header** to toggle and reorder columns (Type, Scope, Schedule, State, Activity, Installed, Version…). *Not persisted across launches yet.*
+- **Sort** — click a column header, including **Activity**, **Installed** (by date), and **Version**.
+- **Dimmed dormant jobs** — a job that isn't running (launchd with no PID, disabled cron) is shown at reduced opacity; running jobs stand out.
 
-## Agir : désactiver, supprimer, restaurer
+## Actions
 
-⚠️ Contrairement au reste de l'app (lecture seule), ces actions **modifient** le système. Elles passent toujours par un **clic droit**, avec confirmation, et sont réversibles.
+Unlike the rest of the app (read-only), these actions **modify** the system. They always go through a **right-click**, require confirmation, and are reversible.
 
-- **Activer / Désactiver** : (dé)charge le job via `launchctl enable|disable` + `bootstrap|bootout` ; pour un cron, (dé)commente la ligne. Réversible par l'action inverse.
-- **Supprimer…** (confirmation obligatoire) : décharge le job puis déplace le `.plist` dans la **corbeille interne** de l'app (un cron est retiré du `crontab`, sa ligne exacte conservée). Aucun `rm` définitif tant que la corbeille n'est pas vidée.
-- **Corbeille** (bouton de la barre d'outils) : liste les éléments supprimés ; **Restaurer** les remet à leur emplacement d'origine (permissions `root:wheel` rétablies pour les daemons) puis les recharge.
-- **Mot de passe administrateur** : demandé une seule fois par action pour les éléments de `/Library` (agents globaux + daemons). Les crons et tes agents `~/Library` n'en ont pas besoin.
+- **Enable/Disable** — (un)loads the job via `launchctl enable|disable` + `bootstrap|bootout`; for a cron, (un)comments the line.
+- **Delete…** (confirmation required) — unloads the job, then moves the `.plist` to the app's **internal trash** (a cron is removed from `crontab`, its exact line preserved). No permanent `rm` until the trash is emptied.
+- **Trash** (toolbar button) — lists deleted items; **Restore** puts them back in place (`root:wheel` permissions restored for daemons) and reloads them.
+- **Admin password** — requested once per action for `/Library` items (global agents + daemons). Crons and your `~/Library` agents don't need it.
 
-## Fichier de configuration
+## Build & run
 
-`~/Library/Application Support/LaunchInspector/config.json` — créé au 1er lancement avec un **stub vide par job** (la clé est pré-remplie, l'agent n'a qu'à compléter). Schéma :
+**In Xcode** (recommended) — uses DerivedData, so no Google Drive sync issues:
+```sh
+open Package.swift   # then Cmd+R
+```
+
+**Command line** — keep the build cache outside Google Drive (a `.build/` inside a synced folder causes `build.db disk I/O` errors and stale binaries):
+```sh
+swift build --scratch-path /tmp/li-build && /tmp/li-build/debug/LaunchInspector
+```
+
+**Headless** (terminal list, config applied, no window):
+```sh
+/tmp/li-build/debug/LaunchInspector --dump
+```
+
+**JSON** (all resolved jobs — exact config key, command, schedule, originating project — to stdout). Used by Claude Code to fill `name`/`description` in `config.json` without locating or parsing `.plist` files:
+```sh
+/tmp/li-build/debug/LaunchInspector --dump-json > /tmp/li-jobs.json
+```
+
+## Configuration
+
+`~/Library/Application Support/LaunchInspector/config.json` — created on first launch with an **empty stub per job** (the key is pre-filled; you only fill in the values). Schema:
 
 ```jsonc
 {
-  "_help": "…doc inline…",
+  "_help": "…inline doc…",
   "version": 1,
   "groups": [
-    { "id": "imprimante", "name": "Imprimante", "collapsed": false }
+    { "id": "printer", "name": "Printer", "collapsed": false }
   ],
   "items": {
-    // clé = Label launchd, ou "cron: <planning> <commande>"
+    // key = launchd Label, or "cron: <schedule> <command>"
     "com.vincent.printer-maintenance": {
-      "name": "Maintenance buses",        // vide = label d'origine
-      "description": "…",                  // note affichée dans le détail
-      "group": "imprimante",               // id d'un groupe (absent = non groupé)
-      "hidden": false                      // true = section "Masqués"
+      "name": "Nozzle maintenance",       // empty = original label
+      "description": "…",                  // note shown in the detail pane
+      "group": "printer",                  // a group id (absent = ungrouped)
+      "hidden": false                      // true = "Hidden" section
     }
   },
   "ungroupedCollapsed": false,
@@ -87,123 +104,94 @@ Portée « seulement les miens » — les daemons Apple de `/System/Library` son
 }
 ```
 
-Conçu pour être édité par **Claude Code** : décodage tolérant (un champ absent prend sa valeur par défaut), clés stables fournies, `_help` documente le schéma. Préserver `collapsed` / `*Collapsed` (état d'UI) lors d'une édition.
+Designed to be edited by **Claude Code**: tolerant decoding (a missing field falls back to its default), stable keys provided, `_help` documents the schema. Preserve `collapsed` / `*Collapsed` (UI state) when editing. The app **hot-reloads** the file (mtime polling) — no need to restart it.
 
-### Remplir la config automatiquement avec Claude Code
+### Fill the config automatically with Claude Code
 
-[Claude Code](https://claude.com/claude-code) peut renseigner pour toi les `name`, `description` **et** la répartition en `groups`. **Étape commune** : exporter la liste des jobs résolus (depuis le dossier du projet) :
+[Claude Code](https://claude.com/claude-code) can fill in `name`, `description`, **and** the split into `groups`. **First**, export the resolved job list (from the project folder):
 
 ```sh
 swift build --scratch-path /tmp/li-build
 /tmp/li-build/debug/LaunchInspector --dump-json > /tmp/li-jobs.json
 ```
 
-Ensuite, deux modes au choix.
+Then pick one of two modes.
 
-#### Mode rapide (non-interactif)
+#### Quick mode (non-interactive)
 
-Remplit `name` + `description` d'un coup, sans rien demander (édits auto-acceptés) :
+Fills `name` + `description` in one shot, no questions asked (edits auto-accepted):
 
 ```sh
 claude -p --permission-mode acceptEdits "$(cat <<'PROMPT'
-Remplis les champs "name" et "description" de chaque item de
+Fill the "name" and "description" fields of every item in
 ~/Library/Application Support/LaunchInspector/config.json.
 
-Source de données : /tmp/li-jobs.json — un tableau JSON dont le champ "configKey"
-de chaque entrée correspond EXACTEMENT à une clé de l'objet "items" du config.json
-(il fournit la commande, le programme, le planning, et pour les jobs perso le projet).
+Data source: /tmp/li-jobs.json — a JSON array whose "configKey" field on each entry
+matches EXACTLY a key in the config.json "items" object (it provides the command,
+the program, the schedule, and for personal jobs the project).
 
-Pour chaque item :
-- name        : nom court et clair, 2 à 4 mots (pas le label technique brut).
-- description : une phrase en français expliquant à quoi sert le job.
+For each item:
+- name        : a short, clear name, 2 to 4 words (not the raw technical label).
+- description : one sentence in English explaining what the job is for.
 
-Jobs tiers connus → décris d'après le programme/chemin. Jobs perso (champ "project"
-ou "symlinkTarget") → lis les fichiers du projet pour être précis. N'invente jamais.
+Known third-party jobs → describe from the program/path. Personal jobs ("project"
+or "symlinkTarget" field) → read the project files to be precise. Never make things up.
 
-Ne modifie QUE "name" et "description". Préserve tout le reste : "_help", "groups"
-(et leur "collapsed"), les "group"/"hidden" existants de chaque item,
-"ungroupedCollapsed", "hiddenCollapsed". N'invente aucune clé. Termine en vérifiant
-que le JSON reste bien formé.
+Only modify "name" and "description". Preserve everything else: "_help", "groups"
+(and their "collapsed"), each item's existing "group"/"hidden", "ungroupedCollapsed",
+"hiddenCollapsed". Don't invent keys. Finish by checking the JSON is still well-formed.
 PROMPT
 )"
 ```
 
-#### Mode interactif — tu choisis quoi remplir (nom / description / groupe)
+#### Interactive mode — you choose what to fill (name / description / group)
 
-Claude Code **présente d'abord ce qu'il peut faire**, te propose un **menu de choix**, puis n'applique **que ce que tu as choisi**. Lance-le sans `-p` (mode interactif, il pose ses questions dans le terminal) :
+Claude Code **first shows what it can do**, offers a **menu**, then applies **only what you chose**. Run it without `-p` (interactive — it asks its questions in the terminal):
 
 ```sh
 claude "$(cat <<'PROMPT'
-Tu vas m'aider à personnaliser le fichier
-~/Library/Application Support/LaunchInspector/config.json à partir de
-/tmp/li-jobs.json (tableau JSON ; le champ "configKey" de chaque entrée correspond
-EXACTEMENT à une clé de "items" et fournit commande / programme / planning / projet).
+Help me customize the file
+~/Library/Application Support/LaunchInspector/config.json from
+/tmp/li-jobs.json (JSON array; each entry's "configKey" field matches EXACTLY a key
+in "items" and provides command / program / schedule / project).
 
-1. Présente-moi d'abord, en quelques lignes, ce que tu peux faire :
-   - "name"        : un nom court et clair (2-4 mots) par item ;
-   - "description" : une phrase en français expliquant à quoi sert chaque job ;
-   - "group"       : répartir les items dans des groupes PAR FONCTION (ex. Mises à
-     jour, Audio & captation, Écrans & affichage, Réseau & sécurité, Système &
-     batterie, CodeBurn…).
+1. First, briefly tell me what you can do:
+   - "name"        : a short, clear name (2-4 words) per item;
+   - "description" : one sentence in English explaining what each job is for;
+   - "group"       : split items into groups BY FUNCTION (e.g. Updates, Audio &
+     capture, Displays, Network & security, System & battery…).
 
-2. Puis DEMANDE-MOI ce que je veux, sous forme de menu (attends ma réponse avant
-   d'écrire quoi que ce soit) :
-   (a) Tout : noms + descriptions + groupes
-   (b) Noms + descriptions seulement
-   (c) (Re)grouper par fonction seulement
-   (d) Je définis moi-même les groupes / l'axe de regroupement
+2. Then ASK me what I want, as a menu (wait for my answer before writing anything):
+   (a) Everything: names + descriptions + groups
+   (b) Names + descriptions only
+   (c) (Re)group by function only
+   (d) I'll define the groups / grouping axis myself
 
-3. Si je demande les groupes, propose-moi d'abord la liste des groupes envisagés et
-   leur contenu, et laisse-moi valider ou ajuster AVANT d'écrire.
+3. If I ask for groups, first propose the list of intended groups and their contents,
+   and let me approve or adjust BEFORE writing.
 
-4. N'écris QUE les champs que j'ai choisis ; préserve tout le reste : "_help",
-   "groups" et leur "collapsed", ainsi que les "name"/"description"/"group"/"hidden"
-   que je n'ai pas demandé de toucher. N'invente jamais de clé (utilise uniquement
-   les "configKey" fournis). Termine en vérifiant que le JSON reste bien formé.
+4. Write ONLY the fields I chose; preserve everything else: "_help", "groups" and their
+   "collapsed", and the "name"/"description"/"group"/"hidden" I didn't ask you to touch.
+   Never invent a key (use only the provided "configKey"). Finish by checking the JSON
+   is still well-formed.
 PROMPT
 )"
 ```
 
-Dans les deux cas, l'app **recharge le fichier à chaud** (polling mtime) — inutile de la relancer. Pour ne pas tout réécrire lors d'une relance, demande à Claude de « ne traiter que les items dont le `name` est vide ».
+To avoid rewriting everything on a re-run, ask Claude to "only process items whose `name` is empty".
 
-## Fichiers stockés sur le Mac
+## Files on disk
 
-L'app ne touche au système que sur **action explicite** (Activer / Désactiver / Supprimer, avec confirmation) — jamais en tâche de fond, rien dans `/System`, aucun daemon installé. Elle écrit ces fichiers :
+The app only touches the system on **explicit action** (Enable/Disable/Delete, with confirmation) — never in the background, nothing in `/System`, no daemon installed. It writes these files:
 
-| Fichier | Rôle | Géré par |
+| File | Purpose | Managed by |
 |---|---|---|
-| `~/Library/Application Support/LaunchInspector/config.json` | Tes personnalisations : groupes, noms, descriptions, masquages, états repliés. | L'app + Claude Code |
-| `~/Library/Application Support/LaunchInspector/trash/` | Corbeille : `.plist` supprimés + `trash.json` (manifeste de restauration). | L'app |
-| `~/Library/Preferences/LaunchInspector.plist` | État de fenêtre macOS : position/taille, largeurs de colonnes de la barre latérale. | macOS (automatique) |
+| `~/Library/Application Support/LaunchInspector/config.json` | Your customizations: groups, names, descriptions, hides, collapsed states. | App + Claude Code |
+| `~/Library/Application Support/LaunchInspector/trash/` | Trash: deleted `.plist` files + `trash.json` (restore manifest). | App |
+| `~/Library/Preferences/LaunchInspector.plist` | macOS window state: position/size, sidebar column widths. | macOS (automatic) |
 
-**Désinstaller proprement** : supprimer le dossier `LaunchInspector` de `Application Support` et le `LaunchInspector.plist` de `Preferences`.
+**Clean uninstall**: delete the `LaunchInspector` folder in `Application Support` and `LaunchInspector.plist` in `Preferences`.
 
-## Lancer
+## License
 
-**Dans Xcode** (recommandé) — utilise DerivedData, donc pas d'effet Google Drive :
-```sh
-open Package.swift   # puis Cmd+R
-```
-
-**En ligne de commande** — placer le cache de build hors Google Drive :
-```sh
-swift build --scratch-path /tmp/li-build && /tmp/li-build/debug/LaunchInspector
-```
-
-**Mode headless** (liste dans le terminal, config appliquée, sans fenêtre) :
-```sh
-/tmp/li-build/debug/LaunchInspector --dump
-```
-
-**Mode JSON** (tous les jobs résolus — clé de config exacte, commande, planning, projet d'origine — sur stdout). Sert à Claude Code pour remplir `name`/`description` dans `config.json` sans avoir à localiser/parser les `.plist` :
-```sh
-/tmp/li-build/debug/LaunchInspector --dump-json > /tmp/li-jobs.json
-```
-
-## Limites connues (v1)
-
-- **Restauration d'un symlink.** Supprimer un job dont le `.plist` est un symlink sauvegarde les octets de la cible ; la restauration recrée un **fichier régulier** (le `.plist` source du projet n'est pas re-symlinké). Comportement volontaire — les actions traitent tous les items de façon uniforme.
-- **Pas d'horodatage de dernière exécution.** launchd n'expose aucune date de dernier déclenchement. On affiche le **compteur `runs`** (nb d'exécutions depuis le login/boot) comme approximation — pas une heure précise. Les crons n'ont pas de compteur (`—`).
-- **Runtime des LaunchDaemons** : lu sans root via `launchctl print system/<label>` (chargé / en cours / `runs`). Les rares daemons dont `print` ne renvoie rien (non bootstrappés, ou réellement restreints) restent affichés « inconnu ».
-- **Build CLI dans Google Drive** : `swift build` place `.build/` dans le dossier synchronisé → erreur `build.db disk I/O` et binaire périmé. Utiliser `--scratch-path /tmp/li-build` (ci-dessus) ou Xcode (DerivedData, non affecté).
-- **Renommage/suppression de groupe** : via le fichier de config (ou l'agent). L'app permet de créer/assigner des groupes ; la gestion fine se fait dans `config.json`.
+[MIT](LICENSE) © 2026 Vincent Battez
