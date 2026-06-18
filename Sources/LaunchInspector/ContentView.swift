@@ -312,6 +312,11 @@ struct ContentView: View {
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
+        #if canImport(Sparkle)
+        ToolbarItem(placement: .automatic) {
+            UpdateToolbarButton()
+        }
+        #endif
         ToolbarItem(placement: .automatic) {
             Menu {
                 Section("Kinds") {
