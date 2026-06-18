@@ -240,21 +240,21 @@ struct ContentView: View {
                     Section(isExpanded: groupBinding(bucket.group.id)) {
                         ForEach(bucket.jobs) { TableRow($0) }
                     } header: {
-                        SectionHeader(title: bucket.group.name, count: bucket.jobs.count, systemImage: "folder")
+                        SectionHeader(title: bucket.group.name, count: bucket.jobs.count, systemImage: "folder", isExpanded: groupBinding(bucket.group.id))
                     }
                 }
                 if !ungroupedJobs.isEmpty {
                     Section(isExpanded: ungroupedBinding) {
                         ForEach(ungroupedJobs) { TableRow($0) }
                     } header: {
-                        SectionHeader(title: "Non groupé", count: ungroupedJobs.count, systemImage: "tray")
+                        SectionHeader(title: "Non groupé", count: ungroupedJobs.count, systemImage: "tray", isExpanded: ungroupedBinding)
                     }
                 }
                 if !hiddenJobs.isEmpty {
                     Section(isExpanded: hiddenBinding) {
                         ForEach(hiddenJobs) { TableRow($0) }
                     } header: {
-                        SectionHeader(title: "Masqués", count: hiddenJobs.count, systemImage: "eye.slash")
+                        SectionHeader(title: "Masqués", count: hiddenJobs.count, systemImage: "eye.slash", isExpanded: hiddenBinding)
                     }
                 }
             }
@@ -554,9 +554,18 @@ private struct SectionHeader: View {
     let title: String
     let count: Int
     let systemImage: String
+    @Binding var isExpanded: Bool
 
     var body: some View {
-        Label("\(title)  (\(count))", systemImage: systemImage)
+        HStack(spacing: 6) {
+            Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 14)
+                .contentShape(Rectangle())
+                .onTapGesture { isExpanded.toggle() }
+            Label("\(title)  (\(count))", systemImage: systemImage)
+        }
     }
 }
 

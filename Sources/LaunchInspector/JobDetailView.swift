@@ -334,38 +334,45 @@ private struct LogsView: View {
 
     private var logScroll: some View {
         ScrollViewReader { proxy in
-            // Deux axes : pas de retour à la ligne (unwrap) → les longues lignes défilent à l'horizontale.
-            ScrollView([.vertical, .horizontal]) {
-                LazyVStack(alignment: .leading, spacing: 1) {
-                    ForEach(streamer.lines) { line in
-                        HStack(alignment: .firstTextBaseline, spacing: 8) {
-                            Text("\(line.id)")
-                                .foregroundStyle(.tertiary)
-                                .frame(minWidth: 44, alignment: .trailing)
-                                .fixedSize()
-                            Text(line.text)
-                                .foregroundStyle(color(for: line.severity))
-                                .textSelection(.enabled)
-                                .lineLimit(1)
-                                .fixedSize(horizontal: true, vertical: false)
+            // GeometryReader : on connaît la largeur du viewport pour forcer le contenu à la
+            // remplir (sinon un ScrollView centre horizontalement tout contenu plus étroit que lui).
+            GeometryReader { geo in
+                // Deux axes : pas de retour à la ligne (unwrap) → les longues lignes défilent à l'horizontale.
+                ScrollView([.vertical, .horizontal]) {
+                    LazyVStack(alignment: .leading, spacing: 1) {
+                        ForEach(streamer.lines) { line in
+                            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                Text("\(line.id)")
+                                    .foregroundStyle(.tertiary)
+                                    .frame(minWidth: 44, alignment: .trailing)
+                                    .fixedSize()
+                                Text(line.text)
+                                    .foregroundStyle(color(for: line.severity))
+                                    .textSelection(.enabled)
+                                    .lineLimit(1)
+                                    .fixedSize(horizontal: true, vertical: false)
+                            }
+                            .font(.system(.caption2, design: .monospaced))
+                            .id(line.id)
                         }
-                        .font(.system(.caption2, design: .monospaced))
-                        .id(line.id)
+                    }
+                    .padding(8)
+                    // minWidth (et non width fixe) : remplit le viewport quand les lignes sont
+                    // courtes (collé à gauche, pas de marge), déborde quand elles sont longues (scroll).
+                    .frame(minWidth: geo.size.width, alignment: .leading)
+                }
+                .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+                .overlay {
+                    if streamer.lines.isEmpty {
+                        Text("En écoute… les nouvelles entrées apparaîtront ici.")
+                            .font(.caption).foregroundStyle(.tertiary)
                     }
                 }
-                .padding(8)
-            }
-            .frame(height: 240)
-            .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
-            .overlay {
-                if streamer.lines.isEmpty {
-                    Text("En écoute… les nouvelles entrées apparaîtront ici.")
-                        .font(.caption).foregroundStyle(.tertiary)
+                .onChange(of: streamer.lines.last?.id) { _, id in
+                    if let id { proxy.scrollTo(id, anchor: .bottomLeading) }
                 }
             }
-            .onChange(of: streamer.lines.last?.id) { _, id in
-                if let id { proxy.scrollTo(id, anchor: .bottomLeading) }
-            }
+            .frame(height: 240)
         }
     }
 
