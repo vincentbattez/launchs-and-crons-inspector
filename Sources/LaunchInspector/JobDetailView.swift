@@ -296,14 +296,25 @@ struct JobDetailView: View {
     }
 }
 
-// MARK: - Logs en direct
+// MARK: - Live logs
 
-/// Lit les logs de l'item sélectionné en direct. Possède son `LogStreamer` ; le flux est piloté
-/// par `.task(id:)` → un seul flux à la fois, redémarré au changement de sélection, arrêté à la
-/// disparition. Un court délai initial évite de spawn un process quand on défile vite dans la liste.
+/// Carries the log scroll viewport width up the tree so the content can fill it (left-aligned)
+/// instead of being centered when lines are shorter than the viewport.
+private struct ViewportWidthKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
+/// Reads the selected item's logs live. Owns its `LogStreamer`; the stream is driven
+/// by `.task(id:)` → a single stream at a time, restarted on selection change, stopped on
+/// disappear. A short initial delay avoids spawning a process when scrolling quickly through the list.
 private struct LogsView: View {
     let job: ScheduledJob
     @State private var streamer = LogStreamer()
+    @State private var viewportWidth: CGFloat = 0
+    @State private var visibleCount = 100
+
+    private let pageSize = 100
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -321,58 +332,71 @@ private struct LogsView: View {
             }
         }
         .task(id: job.id) {
-            // Anti-churn : si on change d'item avant la fin du délai, rien n'est lancé.
+            visibleCount = pageSize          // reset the window when switching jobs
+            // Anti-churn: if the item changes before the delay ends, nothing is launched.
             try? await Task.sleep(for: .milliseconds(250))
             guard !Task.isCancelled else { return }
             if let source = LogStreamer.source(for: job) {
                 await streamer.run(source)
             } else {
-                streamer.setUnavailable("Aucune source de log disponible pour ce job.")
+                streamer.setUnavailable("No log source available for this job.")
             }
         }
     }
 
     private var logScroll: some View {
-        ScrollViewReader { proxy in
-            // GeometryReader : on connaît la largeur du viewport pour forcer le contenu à la
-            // remplir (sinon un ScrollView centre horizontalement tout contenu plus étroit que lui).
-            GeometryReader { geo in
-                // Deux axes : pas de retour à la ligne (unwrap) → les longues lignes défilent à l'horizontale.
-                ScrollView([.vertical, .horizontal]) {
-                    LazyVStack(alignment: .leading, spacing: 1) {
-                        ForEach(streamer.lines) { line in
-                            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                                Text("\(line.id)")
-                                    .foregroundStyle(.tertiary)
-                                    .frame(minWidth: 44, alignment: .trailing)
-                                    .fixedSize()
-                                Text(line.text)
-                                    .foregroundStyle(color(for: line.severity))
-                                    .textSelection(.enabled)
-                                    .lineLimit(1)
-                                    .fixedSize(horizontal: true, vertical: false)
-                            }
-                            .font(.system(.caption2, design: .monospaced))
-                            .id(line.id)
-                        }
+        let hiddenCount = max(0, streamer.lines.count - visibleCount)
+        // Two axes: no line wrapping (unwrap) → long lines scroll horizontally.
+        return ScrollView([.vertical, .horizontal]) {
+            LazyVStack(alignment: .leading, spacing: 1) {
+                if hiddenCount > 0 {
+                    Button {
+                        visibleCount += pageSize
+                    } label: {
+                        Label("Show \(min(pageSize, hiddenCount)) earlier (\(hiddenCount) hidden)",
+                              systemImage: "chevron.up")
+                            .font(.caption)
                     }
-                    .padding(8)
-                    // minWidth (et non width fixe) : remplit le viewport quand les lignes sont
-                    // courtes (collé à gauche, pas de marge), déborde quand elles sont longues (scroll).
-                    .frame(minWidth: geo.size.width, alignment: .leading)
+                    .buttonStyle(.borderless)
+                    .padding(.vertical, 4)
                 }
-                .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
-                .overlay {
-                    if streamer.lines.isEmpty {
-                        Text("En écoute… les nouvelles entrées apparaîtront ici.")
-                            .font(.caption).foregroundStyle(.tertiary)
+                ForEach(streamer.lines.suffix(visibleCount)) { line in
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("\(line.id)")
+                            .foregroundStyle(.tertiary)
+                            .frame(alignment: .trailing)
+                            .fixedSize()
+                        Text(line.text)
+                            .foregroundStyle(color(for: line.severity))
+                            .textSelection(.enabled)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
                     }
-                }
-                .onChange(of: streamer.lines.last?.id) { _, id in
-                    if let id { proxy.scrollTo(id, anchor: .bottomLeading) }
+                    .font(.system(.caption2, design: .monospaced))
+                    .id(line.id)
                 }
             }
-            .frame(height: 240)
+            // minWidth (not a fixed width): fills the viewport when lines are
+            // short (flush left, no margin), overflows when they are long (scroll).
+            .frame(minWidth: viewportWidth, alignment: .leading)
+        }
+        // Start anchored at the end (newest line, flush left) and follow the live tail.
+        .defaultScrollAnchor(.bottomLeading)
+        .frame(height: 240)
+        .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+        // Measure the viewport width off the scroll frame itself (not its content),
+        // so the measurement never feeds back into the scroll layout.
+        .background(
+            GeometryReader { geo in
+                Color.clear.preference(key: ViewportWidthKey.self, value: geo.size.width)
+            }
+        )
+        .onPreferenceChange(ViewportWidthKey.self) { viewportWidth = $0 }
+        .overlay {
+            if streamer.lines.isEmpty {
+                Text("Listening… new entries will appear here.")
+                    .font(.caption).foregroundStyle(.tertiary)
+            }
         }
     }
 
