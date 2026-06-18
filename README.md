@@ -38,6 +38,7 @@ need to reinstall.
 - **Search & filters** — search bar (name, command, project), filter by type, "enabled only".
 - **Visual cues** — colored status dot, dormant jobs dimmed.
 - **Auto-refresh** every 10s (+ ⟳ / ⌘R).
+- **Self-updating** — checks on launch; an **Update** button appears in the toolbar when a new version is available (Sparkle). Also *App menu → Check for Updates…*.
 - **Claude Code-editable config** — names, descriptions, and groups filled in automatically (ready-to-use prompts below).
 - **Headless modes** — `--dump` (text list) and `--dump-json` (full export).
 
