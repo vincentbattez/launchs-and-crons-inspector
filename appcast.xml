@@ -3,11 +3,11 @@
   <channel>
     <title>LaunchInspector</title>
     <item>
-      <title>0.3.1</title>
-      <sparkle:version>0.3.1</sparkle:version>
-      <sparkle:shortVersionString>0.3.1</sparkle:shortVersionString>
+      <title>0.3.2</title>
+      <sparkle:version>0.3.2</sparkle:version>
+      <sparkle:shortVersionString>0.3.2</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-      <enclosure url="https://github.com/vincentbattez/launchs-and-crons-inspector/releases/download/v0.3.1/LaunchInspector-0.3.1.dmg" sparkle:edSignature="kN3Pww5JdRyi8WGYuRot3djnC3nQHBbtfIk3t5zr6RhU1Rx6JLv7Eclksf1VgxpPrs53qu2J3tYcIwPJJeU5DQ==" length="1853073" type="application/octet-stream"/>
+      <enclosure url="https://github.com/vincentbattez/launchs-and-crons-inspector/releases/download/v0.3.2/LaunchInspector-0.3.2.dmg" sparkle:edSignature="AoWiKmmPeFgfMBSYJgQ2VJFyPzXI1hLVQ4lqUtVPNCv2rhAK/UOLYdj+6Isxkkae+J5I5hd/wxHBFvWbc+H3Cw==" length="1566869" type="application/octet-stream"/>
     </item>
   </channel>
 </rss>
