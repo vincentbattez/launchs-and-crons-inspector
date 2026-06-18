@@ -6,8 +6,13 @@ A macOS (SwiftUI) app that lists **your** cron jobs and launchd `.plist` files, 
 
 ## Install
 
-Via [Homebrew](https://brew.sh) (builds from source — no Apple Developer ID needed,
-so Gatekeeper launches it without complaint):
+**Download** — grab the latest `.dmg` from the
+[Releases](https://github.com/vincentbattez/launchs-and-crons-inspector/releases) page,
+open it, and drag **LaunchInspector** into **Applications**. The build is unsigned, so on
+first launch **right-click the app → Open** once to get past Gatekeeper.
+
+**Homebrew** (builds from source — no Apple Developer ID needed, so Gatekeeper launches
+it without complaint):
 
 ```sh
 brew install vincentbattez/tap/launch-inspector

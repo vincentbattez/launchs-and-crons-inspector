@@ -1,0 +1,31 @@
+name: Release
+
+# Build LaunchInspector.app and attach a .dmg to the GitHub Release whenever a
+# version tag is pushed:  git tag v0.2.0 && git push origin v0.2.0
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write # needed to create/update the Release and upload the .dmg
+
+jobs:
+  dmg:
+    runs-on: macos-15 # ships Xcode 16 / Swift 6 by default
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build .dmg
+        run: bash scripts/make-dmg.sh "${GITHUB_REF_NAME#v}"
+
+      - name: Publish to the Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.dmg
+          generate_release_notes: true
+          body: |
+            ### Install
+            Download the `.dmg`, open it, drag **LaunchInspector** into **Applications**.
+
+            First launch (unsigned build): **right-click the app → Open** once to get
+            past Gatekeeper, or `brew install vincentbattez/tap/launch-inspector`.
