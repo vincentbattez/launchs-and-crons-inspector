@@ -1,14 +1,14 @@
 import Foundation
 import Observation
 
-/// Lit les logs d'un job en direct via un sous-processus.
+/// Reads a job's logs live via a subprocess.
 ///
-/// Deux sources possibles (cf. `source(for:)`) :
-/// - fichiers `StandardOutPath`/`StandardErrorPath` → `tail -F` (backfill + suivi intégrés) ;
-/// - sinon journal unifié filtré par process → `log show` (backfill) puis `log stream` (live).
+/// Two possible sources (cf. `source(for:)`):
+/// - `StandardOutPath`/`StandardErrorPath` files → `tail -F` (backfill + follow built in);
+/// - otherwise the unified log filtered by process → `log show` (backfill) then `log stream` (live).
 ///
-/// Le cycle de vie du `Process` est collé à la tâche SwiftUI : à l'annulation (changement d'item
-/// sélectionné ou disparition de la vue), on envoie `SIGTERM`, ce qui ferme le tube et termine le flux.
+/// The `Process` lifecycle is tied to the SwiftUI task: on cancellation (selected item change
+/// or view disappearance), we send `SIGTERM`, which closes the pipe and ends the stream.
 @MainActor
 @Observable
 final class LogStreamer {
@@ -29,7 +29,7 @@ final class LogStreamer {
     private var seq = 0
     private let maxLines = 600
 
-    // MARK: - Choix de la source
+    // MARK: - Source selection
 
     struct Source: Sendable {
         var backfill: (exe: String, args: [String])?
@@ -37,9 +37,9 @@ final class LogStreamer {
         var label: String
     }
 
-    /// Décrit la source de log d'un job, ou nil si aucune n'est disponible.
+    /// Describes a job's log source, or nil if none is available.
     static func source(for job: ScheduledJob) -> Source? {
-        // 1. Fichiers de log explicites (≠ /dev/null) : backfill + live via `tail -F`.
+        // 1. Explicit log files (≠ /dev/null): backfill + live via `tail -F`.
         var files: [String] = []
         if let o = job.standardOutPath, o != "/dev/null" { files.append(o) }
         if let e = job.standardErrorPath, e != "/dev/null", e != job.standardOutPath { files.append(e) }
@@ -47,10 +47,10 @@ final class LogStreamer {
             return Source(
                 backfill: nil,
                 stream: ("/usr/bin/tail", ["-n", "200", "-F"] + files),
-                label: "Fichier : " + files.joined(separator: ", "))
+                label: "File: " + files.joined(separator: ", "))
         }
 
-        // 2. Journal unifié filtré par process : `log show` (historique) puis `log stream` (live).
+        // 2. Unified log filtered by process: `log show` (history) then `log stream` (live).
         guard let program = job.program, !program.isEmpty else { return nil }
         let predicate: String
         let name: String
@@ -64,7 +64,7 @@ final class LogStreamer {
         return Source(
             backfill: ("/usr/bin/log", ["show", "--last", "1h", "--info", "--predicate", predicate, "--style", "compact"]),
             stream: ("/usr/bin/log", ["stream", "--predicate", predicate, "--style", "compact", "--level", "info"]),
-            label: "Journal unifié : " + name)
+            label: "Unified log: " + name)
     }
 
     private static func escapePredicate(_ s: String) -> String {
@@ -72,9 +72,9 @@ final class LogStreamer {
          .replacingOccurrences(of: "\"", with: "\\\"")
     }
 
-    // MARK: - Lecture
+    // MARK: - Reading
 
-    /// Lance le backfill (s'il existe, process fini) puis le flux live, jusqu'à annulation de la tâche.
+    /// Runs the backfill (if it exists, finite process) then the live stream, until the task is cancelled.
     func run(_ source: Source) async {
         reset(label: source.label)
         isRunning = true
@@ -91,7 +91,7 @@ final class LogStreamer {
         unavailable = message
     }
 
-    // MARK: - Privé
+    // MARK: - Private
 
     private func reset(label: String) {
         lines = []
@@ -106,7 +106,7 @@ final class LogStreamer {
         if lines.count > maxLines { lines.removeFirst(lines.count - maxLines) }
     }
 
-    /// Sévérité déduite du contenu (heuristique ; fonctionne pour `tail` comme pour le journal unifié).
+    /// Severity inferred from the content (heuristic; works for `tail` as well as the unified log).
     private static func classify(_ text: String) -> Severity {
         let lower = text.lowercased()
         for needle in ["error", "fail", "fatal", "exception", "critical", "panic"] {
@@ -115,9 +115,9 @@ final class LogStreamer {
         return lower.contains("warn") ? .warning : .normal
     }
 
-    /// Spawn un process et lit sa sortie (stdout + stderr fusionnés) ligne à ligne sur le MainActor.
-    /// Un process fini (backfill) se termine seul (EOF) ; un flux live tourne jusqu'à l'annulation,
-    /// où `onCancel` envoie `SIGTERM` (le pid `Int32` est `Sendable`, contrairement à `Process`).
+    /// Spawns a process and reads its output (stdout + stderr merged) line by line on the MainActor.
+    /// A finite process (backfill) ends on its own (EOF); a live stream runs until cancellation,
+    /// where `onCancel` sends `SIGTERM` (the `Int32` pid is `Sendable`, unlike `Process`).
     private func pump(_ exe: String, _ args: [String]) async {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: exe)
@@ -128,7 +128,7 @@ final class LogStreamer {
         do {
             try process.run()
         } catch {
-            append("Impossible de démarrer la lecture : \(error.localizedDescription)")
+            append("Unable to start reading: \(error.localizedDescription)")
             return
         }
         let pid = process.processIdentifier
@@ -138,7 +138,7 @@ final class LogStreamer {
                     append(line)
                 }
             } catch {
-                // flux interrompu (annulation ou erreur de lecture) → on sort proprement
+                // stream interrupted (cancellation or read error) → we exit cleanly
             }
         } onCancel: {
             kill(pid, SIGTERM)

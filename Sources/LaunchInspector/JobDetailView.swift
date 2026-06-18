@@ -18,13 +18,13 @@ struct JobDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 header
-                section("Personnalisation", systemImage: "pencil") { customizationBlock }
-                section("Ce que ça fait", systemImage: "terminal") { commandBlock }
-                section("Planification", systemImage: "calendar") { scheduleBlock }
-                section("Statut", systemImage: "bolt.horizontal") { statusBlock }
-                section("Logs en direct", systemImage: "list.bullet.rectangle") { LogsView(job: job) }
-                if job.path != nil { section("Métadonnées", systemImage: "info.circle") { metadataBlock } }
-                if job.path != nil { section("Fichier", systemImage: "doc") { fileBlock } }
+                section("Customization", systemImage: "pencil") { customizationBlock }
+                section("What it does", systemImage: "terminal") { commandBlock }
+                section("Schedule", systemImage: "calendar") { scheduleBlock }
+                section("Status", systemImage: "bolt.horizontal") { statusBlock }
+                section("Live logs", systemImage: "list.bullet.rectangle") { LogsView(job: job) }
+                if job.path != nil { section("Metadata", systemImage: "info.circle") { metadataBlock } }
+                if job.path != nil { section("File", systemImage: "doc") { fileBlock } }
                 if !job.rawContent.isEmpty { rawSection }
             }
             .padding(20)
@@ -43,7 +43,7 @@ struct JobDetailView: View {
         .onDisappear { flush() }
     }
 
-    // MARK: - En-tête
+    // MARK: - Header
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -53,7 +53,7 @@ struct JobDetailView: View {
             HStack(spacing: 8) {
                 Badge(text: job.kind.label, systemImage: job.kind.icon)
                 Badge(text: job.scope.label, systemImage: "person.2")
-                if job.isHidden { Badge(text: "Masqué", systemImage: "eye.slash") }
+                if job.isHidden { Badge(text: "Hidden", systemImage: "eye.slash") }
                 Spacer()
                 statePill
             }
@@ -77,13 +77,13 @@ struct JobDetailView: View {
         }
     }
 
-    // MARK: - Personnalisation (éditable)
+    // MARK: - Customization (editable)
 
     private var customizationBlock: some View {
         VStack(alignment: .leading, spacing: 10) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Nom personnalisé").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                TextField(job.label ?? "Nom affiché", text: $draftName)
+                Text("Custom name").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                TextField(job.label ?? "Display name", text: $draftName)
                     .textFieldStyle(.roundedBorder)
                     .focused($focused, equals: .name)
                     .onSubmit { flush() }
@@ -103,11 +103,11 @@ struct JobDetailView: View {
                 groupMenu
                 Spacer()
                 if job.isHidden {
-                    Button("Afficher", systemImage: "eye") {
+                    Button("Show", systemImage: "eye") {
                         model.setHidden(keys: [job.configKey], false)
                     }
                 } else {
-                    Button("Masquer", systemImage: "eye.slash") {
+                    Button("Hide", systemImage: "eye.slash") {
                         model.setHidden(keys: [job.configKey], true)
                     }
                 }
@@ -118,13 +118,13 @@ struct JobDetailView: View {
 
     private var groupMenu: some View {
         Menu {
-            Button("Aucun groupe") { model.setGroup(keys: [job.configKey], to: nil) }
+            Button("No group") { model.setGroup(keys: [job.configKey], to: nil) }
             if !model.config.groups.isEmpty { Divider() }
             ForEach(model.config.groups) { group in
                 Button(group.name) { model.setGroup(keys: [job.configKey], to: group.id) }
             }
             Divider()
-            Button("Nouveau groupe…") { requestNewGroup([job.configKey]) }
+            Button("New group…") { requestNewGroup([job.configKey]) }
         } label: {
             Label(currentGroupName, systemImage: "folder")
         }
@@ -135,17 +135,17 @@ struct JobDetailView: View {
     private var currentGroupName: String {
         guard let id = job.groupID,
               let group = model.config.groups.first(where: { $0.id == id }) else {
-            return "Aucun groupe"
+            return "No group"
         }
         return group.name
     }
 
-    // MARK: - Blocs en lecture seule
+    // MARK: - Read-only blocks
 
     private var commandBlock: some View {
         VStack(alignment: .leading, spacing: 8) {
             if let program = job.program {
-                LabeledRow(label: "Programme", value: program)
+                LabeledRow(label: "Program", value: program)
             }
             if !job.arguments.isEmpty {
                 Text("Arguments").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
@@ -159,11 +159,11 @@ struct JobDetailView: View {
 
     private var scheduleBlock: some View {
         VStack(alignment: .leading, spacing: 6) {
-            LabeledRow(label: "Déclenchement", value: job.scheduleDescription)
+            LabeledRow(label: "Trigger", value: job.scheduleDescription)
             if !job.machServices.isEmpty {
-                LabeledRow(label: "Service Mach (déclencheur)", value: job.machServices.joined(separator: "\n"))
+                LabeledRow(label: "Mach service (trigger)", value: job.machServices.joined(separator: "\n"))
             }
-            LabeledRow(label: "Au chargement (RunAtLoad)", value: job.runAtLoad ? "Oui" : "Non")
+            LabeledRow(label: "At load (RunAtLoad)", value: job.runAtLoad ? "Yes" : "No")
             if let keepAlive = job.keepAliveDescription {
                 LabeledRow(label: "KeepAlive", value: keepAlive)
             }
@@ -173,68 +173,68 @@ struct JobDetailView: View {
     private var metadataBlock: some View {
         VStack(alignment: .leading, spacing: 6) {
             if let date = job.installDate {
-                LabeledRow(label: "Installé le", value: date.formatted(date: .long, time: .omitted))
+                LabeledRow(label: "Installed on", value: date.formatted(date: .long, time: .omitted))
             }
             if let session = job.sessionType {
-                LabeledRow(label: "Session de chargement", value: session)
+                LabeledRow(label: "Load session", value: session)
             }
-            LabeledRow(label: "Version de l'app", value: job.appVersion ?? "—")
+            LabeledRow(label: "App version", value: job.appVersion ?? "—")
         }
     }
 
     private var statusBlock: some View {
         VStack(alignment: .leading, spacing: 6) {
-            LabeledRow(label: "Activé", value: job.enabledState.label)
-            LabeledRow(label: "Chargé", value: loadedText)
-            LabeledRow(label: "En cours", value: job.pid.map { "Oui (pid \($0))" } ?? "Non")
-            LabeledRow(label: "Exécutions", value: runsText)
+            LabeledRow(label: "Enabled", value: job.enabledState.label)
+            LabeledRow(label: "Loaded", value: loadedText)
+            LabeledRow(label: "Running", value: job.pid.map { "Yes (pid \($0))" } ?? "No")
+            LabeledRow(label: "Runs", value: runsText)
             if let status = job.lastExitStatus {
-                LabeledRow(label: "Dernier code de sortie", value: "\(status)")
+                LabeledRow(label: "Last exit status", value: "\(status)")
             }
         }
     }
 
     private var loadedText: String {
         switch job.loaded {
-        case true: "Oui"
-        case false: "Non"
-        default: "Inconnu"
+        case true: "Yes"
+        case false: "No"
+        default: "Unknown"
         }
     }
 
-    /// Compteur `runs` de launchd : nb d'exécutions depuis le chargement (login pour les agents,
-    /// démarrage pour les daemons). Ce n'est pas un horodatage — launchd n'expose pas de date.
+    /// launchd `runs` counter: number of runs since load (login for agents,
+    /// boot for daemons). This is not a timestamp — launchd doesn't expose a date.
     private var runsText: String {
-        if job.kind == .cron { return "— (indisponible pour les crons)" }
+        if job.kind == .cron { return "— (unavailable for crons)" }
         switch job.runCount {
-        case .some(0): return "0 — jamais depuis le démarrage de la session"
-        case .some(let n): return "\(n) depuis le démarrage de la session"
-        case .none: return "Inconnu (non chargé ou état non lisible)"
+        case .some(0): return "0 — never since the session started"
+        case .some(let n): return "\(n) since the session started"
+        case .none: return "Unknown (not loaded or state unreadable)"
         }
     }
 
     private var fileBlock: some View {
         VStack(alignment: .leading, spacing: 8) {
             if let path = job.path {
-                LabeledRow(label: "Chemin", value: path)
+                LabeledRow(label: "Path", value: path)
                 if let target = job.symlinkTarget {
-                    LabeledRow(label: "Symlink vers", value: target)
+                    LabeledRow(label: "Symlink to", value: target)
                 }
                 if let project = job.owningProject {
-                    LabeledRow(label: "Projet", value: project)
+                    LabeledRow(label: "Project", value: project)
                 }
             }
-            LabeledRow(label: "Clé de config", value: job.configKey)
+            LabeledRow(label: "Config key", value: job.configKey)
             HStack {
                 if let path = job.path {
-                    Button("Révéler le job", systemImage: "magnifyingglass") {
+                    Button("Reveal the job", systemImage: "magnifyingglass") {
                         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
                     }
                 }
-                Button("Ouvrir la config", systemImage: "gearshape") {
+                Button("Open the config", systemImage: "gearshape") {
                     NSWorkspace.shared.open(AppModel.configURL)
                 }
-                Button("Copier la clé", systemImage: "doc.on.doc") {
+                Button("Copy the key", systemImage: "doc.on.doc") {
                     copyToClipboard(job.configKey)
                 }
             }
@@ -254,7 +254,7 @@ struct JobDetailView: View {
             .frame(maxHeight: 320)
             .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
         } label: {
-            Label("Contenu du fichier", systemImage: "chevron.left.forwardslash.chevron.right")
+            Label("File content", systemImage: "chevron.left.forwardslash.chevron.right")
                 .font(.headline)
         }
     }
@@ -324,7 +324,7 @@ private struct LogsView: View {
                 HStack(spacing: 6) {
                     Image(systemName: "dot.radiowaves.left.and.right")
                         .foregroundStyle(streamer.isRunning ? .green : .secondary)
-                    Text(streamer.sourceLabel.isEmpty ? "Connexion…" : streamer.sourceLabel)
+                    Text(streamer.sourceLabel.isEmpty ? "Connecting…" : streamer.sourceLabel)
                         .font(.caption).foregroundStyle(.secondary)
                         .lineLimit(1).truncationMode(.middle)
                 }
@@ -409,7 +409,7 @@ private struct LogsView: View {
     }
 }
 
-// MARK: - Petits composants
+// MARK: - Small components
 
 private struct Badge: View {
     let text: String

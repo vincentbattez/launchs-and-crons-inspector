@@ -1,25 +1,25 @@
 import Foundation
 
-/// Un job supprimé, conservé pour pouvoir être restauré.
-/// Pour un `.plist` : les octets d'origine sont sauvegardés dans `blobFile` (corbeille interne),
-/// avec les permissions d'origine pour que launchd accepte de le recharger.
-/// Pour un cron : la ligne exacte du crontab est stockée dans `cronLine` (pas de blob).
+/// A deleted job, kept so it can be restored.
+/// For a `.plist`: the original bytes are saved in `blobFile` (internal trash),
+/// with the original permissions so launchd will accept to reload it.
+/// For a cron: the exact crontab line is stored in `cronLine` (no blob).
 struct TrashEntry: Codable, Identifiable, Sendable {
     var id: String
     var date: Date
     var displayName: String
     var kind: JobKind
     var scope: JobScope
-    var label: String?         // label launchd ; nil = cron
-    var originalPath: String?  // chemin du .plist ; nil = cron
-    var cronLine: String?      // ligne crontab exacte ; nil = launchd
-    var blobFile: String?      // nom du fichier sauvegardé dans trash/ ; nil = cron
-    var mode: UInt16?          // permissions d'origine (st_mode & 0o7777)
-    var uid: UInt32?           // propriétaire d'origine
-    var gid: UInt32?           // groupe d'origine
+    var label: String?         // launchd label ; nil = cron
+    var originalPath: String?  // .plist path ; nil = cron
+    var cronLine: String?      // exact crontab line ; nil = launchd
+    var blobFile: String?      // name of the file saved in trash/ ; nil = cron
+    var mode: UInt16?          // original permissions (st_mode & 0o7777)
+    var uid: UInt32?           // original owner
+    var gid: UInt32?           // original group
 }
 
-/// Stockage sur disque de la corbeille : `~/Library/Application Support/LaunchInspector/trash/`.
+/// On-disk storage for the trash: `~/Library/Application Support/LaunchInspector/trash/`.
 enum TrashStore {
     static var dir: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!

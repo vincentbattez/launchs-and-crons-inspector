@@ -1,7 +1,7 @@
 import SwiftUI
 import Foundation
 
-/// Un groupe résolu avec ses jobs visibles (pour le ForEach du Table).
+/// A resolved group with its visible jobs (for the Table's ForEach).
 private struct GroupBucket: Identifiable {
     let group: ConfigGroup
     let jobs: [ScheduledJob]
@@ -16,24 +16,24 @@ struct ContentView: View {
     @State private var kindFilter: Set<JobKind> = Set(JobKind.allCases)
     @State private var enabledOnly = false
     @State private var sortOrder = [
-        KeyPathComparator(\ScheduledJob.enabledState),       // activés d'abord (enabled < disabled < unknown)
-        KeyPathComparator(\ScheduledJob.displayNameSortKey)  // puis par nom
+        KeyPathComparator(\ScheduledJob.enabledState),       // enabled first (enabled < disabled < unknown)
+        KeyPathComparator(\ScheduledJob.displayNameSortKey)  // then by name
     ]
-    // Personnalisation des colonnes (ordre + affichage/masquage), persistée dans UserDefaults.
-    // TableColumnCustomization est Codable → on l'encode en JSON via @AppStorage.
+    // Column customization (order + show/hide), persisted in UserDefaults.
+    // TableColumnCustomization is Codable → we encode it as JSON via @AppStorage.
     @AppStorage("columnCustomization") private var columnCustomizationStore = Data()
 
-    // Création de groupe (alerte partagée par le menu contextuel et le détail)
+    // Group creation (alert shared by the context menu and the detail view)
     @State private var showNewGroup = false
     @State private var newGroupName = ""
     @State private var pendingGroupKeys: [String] = []
 
-    // Suppression + corbeille
+    // Delete + trash
     @State private var pendingDeleteIDs: Set<ScheduledJob.ID> = []
     @State private var showDeleteConfirm = false
     @State private var showTrash = false
 
-    // MARK: - Données dérivées
+    // MARK: - Derived data
 
     private var filtered: [ScheduledJob] {
         model.jobs
@@ -70,7 +70,7 @@ struct ContentView: View {
         NavigationSplitView {
             jobTable
                 .frame(minWidth: 580)
-                .searchable(text: $search, placement: .sidebar, prompt: "Filtrer par nom, commande, projet…")
+                .searchable(text: $search, placement: .sidebar, prompt: "Filter by name, command, project…")
         } detail: {
             if let selectedJob {
                 JobDetailView(job: selectedJob, requestNewGroup: { keys in
@@ -79,41 +79,41 @@ struct ContentView: View {
                 })
             } else {
                 ContentUnavailableView(
-                    selection.isEmpty ? "Sélectionne un job" : selectionTitle,
+                    selection.isEmpty ? "Select a job" : selectionTitle,
                     systemImage: "list.bullet.rectangle",
                     description: Text(selection.isEmpty
-                        ? "Choisis un cron ou un agent pour voir le détail."
-                        : "Clic droit pour les grouper ou les masquer.")
+                        ? "Choose a cron or an agent to see the details."
+                        : "Right-click to group or hide them.")
                 )
             }
         }
         .navigationTitle("Crons & Agents")
         .navigationSubtitle(subtitle)
         .toolbar { toolbarContent }
-        .alert("Nouveau groupe", isPresented: $showNewGroup) {
-            TextField("Nom du groupe", text: $newGroupName)
-            Button("Créer") { confirmNewGroup() }
-            Button("Annuler", role: .cancel) { resetNewGroup() }
+        .alert("New group", isPresented: $showNewGroup) {
+            TextField("Group name", text: $newGroupName)
+            Button("Create") { confirmNewGroup() }
+            Button("Cancel", role: .cancel) { resetNewGroup() }
         } message: {
-            Text("Donne un nom au nouveau groupe.")
+            Text("Give the new group a name.")
         }
         .confirmationDialog(deleteTitle, isPresented: $showDeleteConfirm, titleVisibility: .visible) {
-            Button("Supprimer", role: .destructive) {
+            Button("Delete", role: .destructive) {
                 let ids = pendingDeleteIDs
                 pendingDeleteIDs = []
                 Task {
                     await model.delete(ids: ids)
-                    selection.subtract(ids) // évite une sélection fantôme sur un job supprimé
+                    selection.subtract(ids) // avoids a phantom selection on a deleted job
                 }
             }
-            Button("Annuler", role: .cancel) { pendingDeleteIDs = [] }
+            Button("Cancel", role: .cancel) { pendingDeleteIDs = [] }
         } message: {
             Text(deleteMessage)
         }
         .sheet(isPresented: $showTrash) {
             TrashView().environment(model)
         }
-        .alert("L'action a échoué", isPresented: actionErrorBinding) {
+        .alert("The action failed", isPresented: actionErrorBinding) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(model.actionError ?? "")
@@ -122,34 +122,34 @@ struct ContentView: View {
             await model.refresh()
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(10))
-                await model.refresh(userInitiated: false) // poll de fond : pas d'indicateur de scan
+                await model.refresh(userInitiated: false) // background poll: no scan indicator
             }
         }
     }
 
     private var subtitle: String {
-        "\(model.jobs.count) jobs · \(model.enabledCount) activés · \(model.disabledCount) désactivés · \(model.hiddenCount) masqués"
+        "\(model.jobs.count) jobs · \(model.enabledCount) enabled · \(model.disabledCount) disabled · \(model.hiddenCount) hidden"
     }
 
     private var selectionTitle: String {
-        selection.count == 1 ? "1 job sélectionné" : "\(selection.count) jobs sélectionnés"
+        selection.count == 1 ? "1 job selected" : "\(selection.count) jobs selected"
     }
 
-    // MARK: - Suppression
+    // MARK: - Delete
 
     private var pendingDeleteJobs: [ScheduledJob] { model.jobs(for: pendingDeleteIDs) }
 
     private var deleteTitle: String {
         if let only = pendingDeleteJobs.first, pendingDeleteJobs.count == 1 {
-            return "Supprimer « \(only.displayName) » ?"
+            return "Delete “\(only.displayName)”?"
         }
-        return "Supprimer \(pendingDeleteJobs.count) éléments ?"
+        return "Delete \(pendingDeleteJobs.count) items?"
     }
 
     private var deleteMessage: String {
-        var parts = ["Le job sera déchargé puis déplacé dans la corbeille de l'app. Tu pourras le restaurer."]
+        var parts = ["The job will be unloaded then moved to the app's trash. You can restore it."]
         if pendingDeleteJobs.contains(where: { $0.scope == .global || $0.kind == .launchDaemon }) {
-            parts.append("Certains éléments système demanderont ton mot de passe administrateur.")
+            parts.append("Some system items will ask for your administrator password.")
         }
         return parts.joined(separator: "\n\n")
     }
@@ -171,15 +171,15 @@ struct ContentView: View {
             }
             .width(22)
             .customizationID("status")
-            .disabledCustomizationBehavior(.all)        // colonne d'ancrage : toujours en tête, non déplaçable
+            .disabledCustomizationBehavior(.all)        // anchor column: always first, not movable
 
-            TableColumn("Nom", value: \.displayNameSortKey) { job in
+            TableColumn("Name", value: \.displayNameSortKey) { job in
                 NameCell(job: job).dimmed(job.isDimmed)
             }
             .customizationID("name")
-            .disabledCustomizationBehavior([.reorder, .visibility])  // en tête, ni déplaçable ni masquable
+            .disabledCustomizationBehavior([.reorder, .visibility])  // leading: neither movable nor hideable
 
-            TableColumn("Type", value: \.kindSortKey) { job in
+            TableColumn("Kind", value: \.kindSortKey) { job in
                 Label(job.kind.label, systemImage: job.kind.icon)
                     .foregroundStyle(.secondary)
                     .dimmed(job.isDimmed)
@@ -187,31 +187,31 @@ struct ContentView: View {
             .width(min: 95, ideal: 115)
             .customizationID("type")
 
-            TableColumn("Portée", value: \.scopeSortKey) { job in
+            TableColumn("Scope", value: \.scopeSortKey) { job in
                 Text(job.scope.label).foregroundStyle(.secondary).dimmed(job.isDimmed)
             }
             .width(min: 70, ideal: 80)
             .customizationID("scope")
 
-            TableColumn("Planification", value: \.scheduleDescription) { job in
+            TableColumn("Schedule", value: \.scheduleDescription) { job in
                 Text(job.scheduleDescription).lineLimit(1).dimmed(job.isDimmed)
             }
             .width(min: 150, ideal: 210)
             .customizationID("schedule")
 
-            TableColumn("État", value: \.enabledState) { job in
+            TableColumn("State", value: \.enabledState) { job in
                 StatePill(job: job).dimmed(job.isDimmed)
             }
             .width(min: 130, ideal: 150)
             .customizationID("state")
 
-            TableColumn("Activité", value: \.runCountSortKey) { job in
+            TableColumn("Activity", value: \.runCountSortKey) { job in
                 ActivityCell(job: job).dimmed(job.isDimmed)
             }
             .width(min: 70, ideal: 90)
             .customizationID("activity")
 
-            TableColumn("Installé", value: \.installDateSortKey) { job in
+            TableColumn("Installed", value: \.installDateSortKey) { job in
                 Group {
                     if let date = job.installDate {
                         Text(date.formatted(.dateTime.year().month(.abbreviated).day()))
@@ -247,14 +247,14 @@ struct ContentView: View {
                     Section(isExpanded: ungroupedBinding) {
                         ForEach(ungroupedJobs) { TableRow($0) }
                     } header: {
-                        SectionHeader(title: "Non groupé", count: ungroupedJobs.count, systemImage: "tray", isExpanded: ungroupedBinding)
+                        SectionHeader(title: "Ungrouped", count: ungroupedJobs.count, systemImage: "tray", isExpanded: ungroupedBinding)
                     }
                 }
                 if !hiddenJobs.isEmpty {
                     Section(isExpanded: hiddenBinding) {
                         ForEach(hiddenJobs) { TableRow($0) }
                     } header: {
-                        SectionHeader(title: "Masqués", count: hiddenJobs.count, systemImage: "eye.slash", isExpanded: hiddenBinding)
+                        SectionHeader(title: "Hidden", count: hiddenJobs.count, systemImage: "eye.slash", isExpanded: hiddenBinding)
                     }
                 }
             }
@@ -264,7 +264,7 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - Menu contextuel
+    // MARK: - Context menu
 
     @ViewBuilder
     private func contextMenu(for ids: Set<ScheduledJob.ID>) -> some View {
@@ -274,34 +274,34 @@ struct ContentView: View {
         } else {
             let targets = model.jobs(for: ids)
             if targets.contains(where: { $0.enabledState == .disabled }) {
-                Button("Activer", systemImage: "play.circle") {
+                Button("Enable", systemImage: "play.circle") {
                     Task { await model.setEnabled(ids: ids, enabled: true) }
                 }
             }
             if targets.contains(where: { $0.enabledState == .enabled }) {
-                Button("Désactiver", systemImage: "pause.circle") {
+                Button("Disable", systemImage: "pause.circle") {
                     Task { await model.setEnabled(ids: ids, enabled: false) }
                 }
             }
             Divider()
-            Menu("Déplacer vers") {
+            Menu("Move to") {
                 ForEach(model.config.groups) { group in
                     Button(group.name) { model.setGroup(keys: keys, to: group.id) }
                 }
                 if !model.config.groups.isEmpty { Divider() }
-                Button("Nouveau groupe…") {
+                Button("New group…") {
                     pendingGroupKeys = keys
                     showNewGroup = true
                 }
-                Button("Aucun groupe") { model.setGroup(keys: keys, to: nil) }
+                Button("No group") { model.setGroup(keys: keys, to: nil) }
             }
             if model.anyHidden(keys: keys) {
-                Button("Afficher", systemImage: "eye") { model.setHidden(keys: keys, false) }
+                Button("Show", systemImage: "eye") { model.setHidden(keys: keys, false) }
             } else {
-                Button("Masquer", systemImage: "eye.slash") { model.setHidden(keys: keys, true) }
+                Button("Hide", systemImage: "eye.slash") { model.setHidden(keys: keys, true) }
             }
             Divider()
-            Button("Supprimer…", systemImage: "trash", role: .destructive) {
+            Button("Delete…", systemImage: "trash", role: .destructive) {
                 pendingDeleteIDs = ids
                 showDeleteConfirm = true
             }
@@ -314,15 +314,15 @@ struct ContentView: View {
     private var toolbarContent: some ToolbarContent {
         ToolbarItem(placement: .automatic) {
             Menu {
-                Section("Types") {
+                Section("Kinds") {
                     ForEach(JobKind.allCases) { kind in
                         Toggle(kind.label, isOn: kindBinding(kind))
                     }
                 }
                 Divider()
-                Toggle("Activés uniquement", isOn: $enabledOnly)
+                Toggle("Enabled only", isOn: $enabledOnly)
             } label: {
-                Label("Filtres", systemImage: "line.3.horizontal.decrease.circle")
+                Label("Filters", systemImage: "line.3.horizontal.decrease.circle")
             }
         }
 
@@ -330,9 +330,9 @@ struct ContentView: View {
             Button {
                 showTrash = true
             } label: {
-                Label("Corbeille", systemImage: model.trash.isEmpty ? "trash" : "trash.fill")
+                Label("Trash", systemImage: model.trash.isEmpty ? "trash" : "trash.fill")
             }
-            .help(model.trash.isEmpty ? "Corbeille vide" : "Corbeille (\(model.trash.count))")
+            .help(model.trash.isEmpty ? "Trash is empty" : "Trash (\(model.trash.count))")
         }
 
         ToolbarItem(placement: .primaryAction) {
@@ -342,7 +342,7 @@ struct ContentView: View {
                 if model.isScanning {
                     ProgressView().controlSize(.small)
                 } else {
-                    Label("Rafraîchir", systemImage: "arrow.clockwise")
+                    Label("Refresh", systemImage: "arrow.clockwise")
                 }
             }
             .disabled(model.isScanning)
@@ -351,7 +351,7 @@ struct ContentView: View {
 
     // MARK: - Bindings
 
-    /// Lit/écrit la personnalisation des colonnes dans UserDefaults (ordre + colonnes masquées).
+    /// Reads/writes the column customization in UserDefaults (order + hidden columns).
     private var columnCustomizationBinding: Binding<TableColumnCustomization<ScheduledJob>> {
         Binding(
             get: {
@@ -392,7 +392,7 @@ struct ContentView: View {
         )
     }
 
-    // MARK: - Nouveau groupe
+    // MARK: - New group
 
     private func confirmNewGroup() {
         let name = newGroupName.trimmingCharacters(in: .whitespaces)
@@ -408,7 +408,7 @@ struct ContentView: View {
     }
 }
 
-// MARK: - Cellules
+// MARK: - Cells
 
 private struct NameCell: View {
     let job: ScheduledJob
@@ -435,7 +435,7 @@ private struct NameCell: View {
         }
     }
 
-    /// Sous-titre : label d'origine si renommé, sinon projet d'origine du symlink.
+    /// Subtitle: original label if renamed, otherwise the symlink's source project.
     private var subtitle: String? {
         if job.customName != nil, let label = job.label { return label }
         return job.owningProject
@@ -468,23 +468,23 @@ struct StatusDot: View {
         case .enabled:
             if job.pid != nil { return .green }
             switch job.loaded {
-            case true: return .teal      // chargé, inactif
-            case false: return .orange   // non chargé
-            default: return .secondary   // runtime inconnu (daemon, root requis)
+            case true: return .teal      // loaded, idle
+            case false: return .orange   // not loaded
+            default: return .secondary   // unknown runtime (daemon, root required)
             }
         }
     }
 
     private var helpText: String {
         switch job.enabledState {
-        case .disabled: return "Désactivé"
-        case .unknown: return "État inconnu"
+        case .disabled: return "Disabled"
+        case .unknown: return "Unknown state"
         case .enabled:
-            if job.pid != nil { return "Activé, en cours d'exécution" }
+            if job.pid != nil { return "Enabled, running" }
             switch job.loaded {
-            case true: return "Activé et chargé (inactif)"
-            case false: return "Activé, non chargé"
-            default: return "Activé — runtime inconnu (root requis)"
+            case true: return "Enabled and loaded (idle)"
+            case false: return "Enabled, not loaded"
+            default: return "Enabled — unknown runtime (root required)"
             }
         }
     }
@@ -507,16 +507,16 @@ struct StatePill: View {
 
     private var runtimeDetail: String? {
         if job.kind == .cron { return nil }
-        if let pid = job.pid { return "en cours · pid \(pid)" }
+        if let pid = job.pid { return "running · pid \(pid)" }
         switch job.loaded {
-        case true: return "chargé, inactif"
-        case false: return "non chargé"
-        default: return "runtime inconnu"
+        case true: return "loaded, idle"
+        case false: return "not loaded"
+        default: return "unknown runtime"
         }
     }
 }
 
-/// Nombre d'exécutions depuis le chargement (login/boot). Approxime « a-t-il tourné cette session ».
+/// Run count since load (login/boot). Approximates “did it run this session”.
 struct ActivityCell: View {
     let job: ScheduledJob
 
@@ -525,12 +525,12 @@ struct ActivityCell: View {
         case .count(let n):
             Text("\(n)×")
                 .monospacedDigit()
-                .help("\(n) exécution(s) depuis le démarrage de la session")
+                .help("\(n) run(s) since the session started")
         case .never:
-            Text("jamais")
+            Text("never")
                 .font(.callout)
                 .foregroundStyle(.secondary)
-                .help("Chargé mais jamais exécuté depuis le démarrage de la session")
+                .help("Loaded but never run since the session started")
         case .unavailable(let why):
             Text("—")
                 .foregroundStyle(.tertiary)
@@ -541,11 +541,11 @@ struct ActivityCell: View {
     private enum Label { case count(Int), never, unavailable(String) }
 
     private var label: Label {
-        if job.kind == .cron { return .unavailable("Compteur d'exécutions indisponible pour les crons") }
+        if job.kind == .cron { return .unavailable("Run counter unavailable for crons") }
         switch job.runCount {
         case .some(0): return .never
         case .some(let n): return .count(n)
-        case .none: return .unavailable("Non chargé ou état non lisible")
+        case .none: return .unavailable("Not loaded or state not readable")
         }
     }
 }
@@ -569,7 +569,7 @@ private struct SectionHeader: View {
     }
 }
 
-// MARK: - Modificateur de grisage
+// MARK: - Dimming modifier
 
 private extension View {
     func dimmed(_ isDimmed: Bool) -> some View {

@@ -4,12 +4,12 @@ import Observation
 @MainActor
 @Observable
 final class AppModel {
-    /// Jobs scannés + personnalisation appliquée (source de vérité pour les vues).
+    /// Scanned jobs + customization applied (source of truth for the views).
     private(set) var jobs: [ScheduledJob] = []
     private(set) var config = AppConfig()
     private(set) var trash: [TrashEntry] = []
     var isScanning = false
-    var actionError: String?   // message d'échec de la dernière action (affiché en alerte)
+    var actionError: String?   // failure message from the last action (shown in an alert)
 
     private var rawJobs: [ScheduledJob] = []
     private var configMtime: Date?
@@ -19,7 +19,7 @@ final class AppModel {
     var disabledCount: Int { jobs.filter { $0.enabledState == .disabled }.count }
     var hiddenCount: Int { jobs.filter(\.isHidden).count }
 
-    // MARK: - Emplacement du fichier de config
+    // MARK: - Config file location
 
     nonisolated static var configURL: URL {
         let base = FileManager.default
@@ -27,10 +27,10 @@ final class AppModel {
         return base.appendingPathComponent("LaunchInspector/config.json")
     }
 
-    // MARK: - Cycle de rafraîchissement
+    // MARK: - Refresh cycle
 
-    /// Scanne le statut (toujours) et recharge la config si le fichier a changé sur disque.
-    /// `userInitiated == false` (poll de fond) n'allume pas l'indicateur de scan → pas de flicker.
+    /// Scans the status (always) and reloads the config if the file changed on disk.
+    /// `userInitiated == false` (background poll) does not light up the scan indicator → no flicker.
     func refresh(userInitiated: Bool = true) async {
         if userInitiated { isScanning = true }
         defer { if userInitiated { isScanning = false } }
@@ -50,7 +50,7 @@ final class AppModel {
         merge()
     }
 
-    // MARK: - Lecture / écriture de la config
+    // MARK: - Reading / writing the config
 
     private func loadConfig() {
         guard let data = try? Data(contentsOf: Self.configURL),
@@ -70,7 +70,7 @@ final class AppModel {
         (try? FileManager.default.attributesOfItem(atPath: Self.configURL.path)[.modificationDate]) as? Date
     }
 
-    /// Ajoute un stub vide pour chaque job non encore présent (idempotent, ne touche jamais aux valeurs existantes).
+    /// Adds an empty stub for each job not yet present (idempotent, never touches existing values).
     private func scaffold() {
         var changed = false
         if config.help == nil {
@@ -84,7 +84,7 @@ final class AppModel {
         if changed { saveConfig() }
     }
 
-    /// Écrit la config sur disque sans re-fusionner (l'UI lit `config` directement, via observation).
+    /// Writes the config to disk without re-merging (the UI reads `config` directly, via observation).
     private func persistConfig() {
         try? FileManager.default.createDirectory(
             at: Self.configURL.deletingLastPathComponent(),
@@ -93,22 +93,22 @@ final class AppModel {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         guard let data = try? encoder.encode(config) else { return }
         try? data.write(to: Self.configURL)
-        configMtime = modificationDate() // évite que le poll suivant recharge et écrase l'édition
+        configMtime = modificationDate() // prevents the next poll from reloading and overwriting the edit
     }
 
-    /// Persiste + ré-applique la config aux jobs. À utiliser dès qu'un changement affecte l'affichage
-    /// des jobs (nom, description, groupe, masquage). Pour un simple état d'UI, préférer `persistConfig`.
+    /// Persists + re-applies the config to the jobs. Use this whenever a change affects the display
+    /// of the jobs (name, description, group, hiding). For a plain UI state, prefer `persistConfig`.
     private func saveConfig() {
         persistConfig()
         merge()
     }
 
-    /// Applique la config aux jobs scannés.
+    /// Applies the config to the scanned jobs.
     private func merge() {
         jobs = Self.applyConfig(rawJobs, config)
     }
 
-    /// Fusion pure (réutilisée par le mode headless `--dump`).
+    /// Pure merge (reused by the headless `--dump` mode).
     nonisolated static func applyConfig(_ rawJobs: [ScheduledJob], _ config: AppConfig) -> [ScheduledJob] {
         rawJobs.map { job in
             var job = job
@@ -132,7 +132,7 @@ final class AppModel {
         return decoded
     }
 
-    // MARK: - Mutateurs (UI)
+    // MARK: - Mutators (UI)
 
     func configKeys(for ids: Set<ScheduledJob.ID>) -> [String] {
         jobs.filter { ids.contains($0.id) }.map(\.configKey)
@@ -142,7 +142,7 @@ final class AppModel {
         jobs.filter { ids.contains($0.id) }
     }
 
-    // MARK: - Actions système (désactiver / supprimer / restaurer)
+    // MARK: - System actions (disable / delete / restore)
 
     func setEnabled(ids: Set<ScheduledJob.ID>, enabled: Bool) async {
         let targets = jobs(for: ids)
@@ -215,7 +215,7 @@ final class AppModel {
         var group = config.groups[index]
         group.collapsed = collapsed
         config.groups[index] = group
-        persistConfig() // état d'UI pur → pas de re-fusion des jobs
+        persistConfig() // pure UI state → no re-merge of the jobs
     }
 
     func setUngroupedCollapsed(_ collapsed: Bool) {
@@ -232,7 +232,7 @@ final class AppModel {
         let base = name.lowercased()
             .replacingOccurrences(of: " ", with: "-")
             .filter { $0.isLetter || $0.isNumber || $0 == "-" }
-        let slug = base.isEmpty ? "groupe" : base
+        let slug = base.isEmpty ? "group" : base
         var candidate = slug
         var suffix = 2
         while config.groups.contains(where: { $0.id == candidate }) {

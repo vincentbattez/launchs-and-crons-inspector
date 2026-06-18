@@ -1,6 +1,6 @@
 import Foundation
 
-/// Lance un binaire et renvoie sa sortie standard. Synchrone, à appeler hors du main thread.
+/// Launches a binary and returns its standard output. Synchronous, to be called off the main thread.
 enum Shell {
     static func run(_ launchPath: String, _ args: [String]) -> String {
         let process = Process()
@@ -8,7 +8,7 @@ enum Shell {
         process.arguments = args
         let stdout = Pipe()
         process.standardOutput = stdout
-        process.standardError = Pipe() // on ignore stderr
+        process.standardError = Pipe() // we ignore stderr
         do {
             try process.run()
         } catch {
@@ -20,7 +20,7 @@ enum Shell {
     }
 }
 
-/// Scanne crons + LaunchAgents/LaunchDaemons de l'utilisateur et globaux.
+/// Scans crons + user and global LaunchAgents/LaunchDaemons.
 enum JobScanner {
 
     static func scanAll() -> [ScheduledJob] {
@@ -46,18 +46,18 @@ enum JobScanner {
         return jobs
     }
 
-    // MARK: - Compteur d'exécutions + runtime (launchctl print, sans root)
+    // MARK: - Run count + runtime (launchctl print, without root)
 
-    /// Infos extraites de `launchctl print <domaine>/<label>`.
+    /// Info extracted from `launchctl print <domain>/<label>`.
     private struct PrintInfo {
-        var present = false      // print a renvoyé quelque chose (job bootstrappé dans le domaine)
+        var present = false      // print returned something (job bootstrapped in the domain)
         var runs: Int?
         var pid: Int?
         var lastExit: Int?
     }
 
-    /// `runs`, `pid`, `last exit code` du sommet du dump (on ignore les `state = active` imbriqués
-    /// en ne gardant que la 1re occurrence de chaque clé). Fonctionne sans root pour gui et system.
+    /// `runs`, `pid`, `last exit code` from the top of the dump (we ignore nested `state = active`
+    /// by keeping only the 1st occurrence of each key). Works without root for gui and system.
     private static func printInfo(domain: String, label: String) -> PrintInfo {
         let text = Shell.run("/bin/launchctl", ["print", "\(domain)/\(label)"])
         guard !text.isEmpty else { return PrintInfo() }
@@ -75,12 +75,12 @@ enum JobScanner {
         return info
     }
 
-    /// Remplit `runCount` pour tous les jobs launchd, et complète loaded/pid/lastExit quand ils
-    /// étaient inconnus (daemons absents de `launchctl list`). Un appel Process par job, lancés en
-    /// parallèle (~0,4 s pour ~33 jobs au lieu de ~3 s en séquentiel).
+    /// Fills `runCount` for all launchd jobs, and completes loaded/pid/lastExit when they
+    /// were unknown (daemons missing from `launchctl list`). One Process call per job, launched in
+    /// parallel (~0.4 s for ~33 jobs instead of ~3 s sequentially).
     private static func fillRunCounts(_ jobs: inout [ScheduledJob]) {
         let uid = getuid()
-        // Cibles immuables (Sendable) : index dans `jobs`, domaine launchctl, label.
+        // Immutable targets (Sendable): index in `jobs`, launchctl domain, label.
         let requests: [(index: Int, domain: String, label: String)] = jobs.indices.compactMap { i in
             let domain: String
             switch jobs[i].kind {
@@ -93,8 +93,8 @@ enum JobScanner {
         }
         guard !requests.isEmpty else { return }
 
-        // Écritures sur des indices disjoints → sûr. Le buffer mutable exprime cet invariant au
-        // compilateur ; `nonisolated(unsafe)` lève le contrôle Sendable sur le pointeur partagé.
+        // Writes to disjoint indices → safe. The mutable buffer expresses this invariant to the
+        // compiler; `nonisolated(unsafe)` lifts the Sendable check on the shared pointer.
         var results = [PrintInfo](repeating: PrintInfo(), count: requests.count)
         results.withUnsafeMutableBufferPointer { buffer in
             nonisolated(unsafe) let buffer = buffer
@@ -107,7 +107,7 @@ enum JobScanner {
             let info = results[k]
             let i = req.index
             jobs[i].runCount = info.runs
-            // Compléter le runtime seulement quand il était inconnu (daemons) ET que print a répondu.
+            // Complete the runtime only when it was unknown (daemons) AND print responded.
             if info.present, jobs[i].loaded == nil {
                 jobs[i].loaded = true
                 if jobs[i].pid == nil { jobs[i].pid = info.pid }
@@ -116,10 +116,10 @@ enum JobScanner {
         }
     }
 
-    // MARK: - Statut launchd
+    // MARK: - launchd status
 
-    /// Map `label -> estDésactivé`, fusion des domaines gui et system
-    /// (les deux marchent sans root via `launchctl print-disabled`).
+    /// Map `label -> isDisabled`, merging the gui and system domains
+    /// (both work without root via `launchctl print-disabled`).
     private static func parseDisabledMap() -> [String: Bool] {
         var map: [String: Bool] = [:]
         let uid = getuid()
@@ -139,12 +139,12 @@ enum JobScanner {
         return map
     }
 
-    /// Map `label -> (pid, lastExitStatus)` depuis `launchctl list` (domaine gui).
+    /// Map `label -> (pid, lastExitStatus)` from `launchctl list` (gui domain).
     private static func parseListMap() -> [String: (pid: Int?, status: Int?)] {
         var map: [String: (pid: Int?, status: Int?)] = [:]
         let text = Shell.run("/bin/launchctl", ["list"])
         for (index, line) in text.split(separator: "\n").enumerated() {
-            if index == 0 { continue } // en-tête PID Status Label
+            if index == 0 { continue } // PID Status Label header
             let cols = line.components(separatedBy: "\t")
             guard cols.count >= 3 else { continue }
             map[cols[2]] = (pid: Int(cols[0]), status: Int(cols[1]))
@@ -179,7 +179,7 @@ enum JobScanner {
 
         let label = (dict["Label"] as? String) ?? url.deletingPathExtension().lastPathComponent
 
-        // Programme / arguments
+        // Program / arguments
         let arguments = (dict["ProgramArguments"] as? [String]) ?? []
         let programKey = dict["Program"] as? String
         let program = programKey ?? arguments.first
@@ -192,7 +192,7 @@ enum JobScanner {
             commandLine = "—"
         }
 
-        // Symlink / projet
+        // Symlink / project
         var symlinkTarget: String?
         var owningProject: String?
         if let dest = try? FileManager.default.destinationOfSymbolicLink(atPath: url.path) {
@@ -203,7 +203,7 @@ enum JobScanner {
             owningProject = resolved.deletingLastPathComponent().lastPathComponent
         }
 
-        // Statut
+        // Status
         let enabledState: EnabledState
         if let disabled = disabledMap[label] {
             enabledState = disabled ? .disabled : .enabled
@@ -221,7 +221,7 @@ enum JobScanner {
             pid = entry.pid
             lastExit = entry.status
         } else if kind == .launchDaemon {
-            loaded = nil // inconnu sans root
+            loaded = nil // unknown without root
             pid = nil
             lastExit = nil
         } else {
@@ -230,11 +230,11 @@ enum JobScanner {
             lastExit = nil
         }
 
-        // Sorties de log déclarées
+        // Declared log outputs
         let stdoutPath = dict["StandardOutPath"] as? String
         let stderrPath = dict["StandardErrorPath"] as? String
 
-        // Métadonnées
+        // Metadata
         let machServices = (dict["MachServices"] as? [String: Any])?.keys.sorted() ?? []
         let sessionType = describeSessionType(dict["LimitLoadToSessionType"], kind: kind)
         let appVersion = appVersion(forProgram: program)
@@ -271,10 +271,10 @@ enum JobScanner {
         )
     }
 
-    // MARK: - Métadonnées (.plist + filesystem)
+    // MARK: - Metadata (.plist + filesystem)
 
-    /// Date de création du fichier (birthtime via lstat — celle du symlink lui-même, pas de sa cible),
-    /// avec repli sur la date de modification si le birthtime est absent.
+    /// File creation date (birthtime via lstat — that of the symlink itself, not its target),
+    /// falling back to the modification date if the birthtime is absent.
     private static func creationDate(ofPath path: String) -> Date? {
         var st = stat()
         guard lstat(path, &st) == 0 else { return nil }
@@ -286,7 +286,7 @@ enum JobScanner {
         return mt.tv_sec > 0 ? Date(timeIntervalSince1970: TimeInterval(mt.tv_sec) + TimeInterval(mt.tv_nsec) / 1_000_000_000) : nil
     }
 
-    /// `CFBundleShortVersionString` si le programme vit dans un `.app`.
+    /// `CFBundleShortVersionString` if the program lives in a `.app`.
     private static func appVersion(forProgram program: String?) -> String? {
         guard let program, let r = program.range(of: ".app/") else { return nil }
         let bundle = String(program[..<r.lowerBound]) + ".app"
@@ -297,11 +297,11 @@ enum JobScanner {
         return (dict["CFBundleShortVersionString"] as? String) ?? (dict["CFBundleVersion"] as? String)
     }
 
-    /// `LimitLoadToSessionType` → texte ; défaut « Aqua » (agent) ou « Système » (daemon).
+    /// `LimitLoadToSessionType` → text; defaults to "Aqua" (agent) or "System" (daemon).
     private static func describeSessionType(_ raw: Any?, kind: JobKind) -> String {
         if let s = raw as? String { return s }
         if let a = raw as? [String] { return a.joined(separator: ", ") }
-        return kind == .launchDaemon ? "Système" : "Aqua"
+        return kind == .launchDaemon ? "System" : "Aqua"
     }
 
     private static func rawContent(from data: Data) -> String {
@@ -309,16 +309,16 @@ enum JobScanner {
            text.contains("<plist") || text.hasPrefix("<?xml") {
             return text
         }
-        // plist binaire → conversion XML pour l'affichage
+        // binary plist → XML conversion for display
         if let object = try? PropertyListSerialization.propertyList(from: data, format: nil),
            let xml = try? PropertyListSerialization.data(fromPropertyList: object, format: .xml, options: 0),
            let text = String(data: xml, encoding: .utf8) {
             return text
         }
-        return "(contenu binaire illisible)"
+        return "(unreadable binary content)"
     }
 
-    // MARK: - Planification launchd
+    // MARK: - launchd schedule
 
     private static func describeSchedule(_ dict: [String: Any]) -> String {
         var triggers: [String] = []
@@ -332,36 +332,36 @@ enum JobScanner {
             triggers.append(summarizeCalendars(cals.map(describeCalendar)))
         }
         if dict["WatchPaths"] != nil {
-            triggers.append("Quand un chemin surveillé change")
+            triggers.append("When a watched path changes")
         }
         if dict["QueueDirectories"] != nil {
-            triggers.append("Quand un dossier file d'attente reçoit du contenu")
+            triggers.append("When a queue directory receives content")
         }
         switch dict["KeepAlive"] {
         case let value as Bool where value:
-            triggers.append("Maintenu actif en permanence")
+            triggers.append("Kept alive permanently")
         case is [String: Any]:
-            triggers.append("Relancé sous conditions")
+            triggers.append("Restarted under conditions")
         default:
             break
         }
         if (dict["RunAtLoad"] as? Bool) == true {
-            triggers.append(triggers.isEmpty ? "Au démarrage / login" : "au chargement")
+            triggers.append(triggers.isEmpty ? "At startup / login" : "on load")
         }
 
-        return triggers.isEmpty ? "À la demande" : triggers.joined(separator: " · ")
+        return triggers.isEmpty ? "On demand" : triggers.joined(separator: " · ")
     }
 
     private static func describeKeepAlive(_ value: Any?) -> String? {
         switch value {
         case let bool as Bool:
-            return bool ? "Toujours (redémarré s'il s'arrête)" : "Non"
+            return bool ? "Always (restarted if it stops)" : "No"
         case let conditions as [String: Any]:
             let parts = conditions.compactMap { key, raw -> String? in
                 guard let flag = raw as? Bool else { return nil }
                 return "\(key) = \(flag)"
             }
-            return "Conditionnel — " + parts.sorted().joined(separator: ", ")
+            return "Conditional — " + parts.sorted().joined(separator: ", ")
         default:
             return nil
         }
@@ -376,53 +376,53 @@ enum JobScanner {
 
         var prefix: String
         if let weekday {
-            prefix = "chaque " + weekdayName(weekday)
+            prefix = "every " + weekdayName(weekday)
         } else if let day {
-            prefix = "le \(day) du mois"
+            prefix = "on the \(day)th of the month"
         } else {
-            prefix = "chaque jour"
+            prefix = "every day"
         }
 
         var time = ""
         if let hour, let minute {
-            time = String(format: " à %02d:%02d", hour, minute)
+            time = String(format: " at %02d:%02d", hour, minute)
         } else if let hour {
-            time = String(format: " à %02dh", hour)
+            time = String(format: " at %02dh", hour)
         } else if let minute {
-            // minute seule → à cette minute de chaque heure
-            return "à la minute :" + String(format: "%02d", minute) + " de chaque heure"
+            // minute only → at that minute of every hour
+            return "at minute :" + String(format: "%02d", minute) + " of every hour"
         }
 
         var result = prefix + time
-        if let month { result += " (mois \(month))" }
+        if let month { result += " (month \(month))" }
         return result
     }
 
     private static func summarizeCalendars(_ parts: [String]) -> String {
         if parts.count <= 4 { return parts.joined(separator: " ; ") }
-        return "\(parts.count) horaires programmés"
+        return "\(parts.count) scheduled times"
     }
 
     private static func describeInterval(_ seconds: Int) -> String {
         if seconds % 86_400 == 0 {
             let days = seconds / 86_400
-            return days == 1 ? "Une fois par jour" : "Tous les \(days) jours"
+            return days == 1 ? "Once a day" : "Every \(days) days"
         }
         if seconds % 3_600 == 0 {
             let hours = seconds / 3_600
-            return hours == 1 ? "Toutes les heures" : "Toutes les \(hours) heures"
+            return hours == 1 ? "Every hour" : "Every \(hours) hours"
         }
         if seconds % 60 == 0 {
             let minutes = seconds / 60
-            return minutes == 1 ? "Toutes les minutes" : "Toutes les \(minutes) min"
+            return minutes == 1 ? "Every minute" : "Every \(minutes) min"
         }
-        return "Toutes les \(seconds) s"
+        return "Every \(seconds) s"
     }
 
     private static func weekdayName(_ value: Int) -> String {
-        // launchd : 0 et 7 = dimanche
-        let names = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]
-        return (0...7).contains(value) ? names[value] : "jour \(value)"
+        // launchd: 0 and 7 = Sunday
+        let names = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        return (0...7).contains(value) ? names[value] : "day \(value)"
     }
 
     private static func intValue(_ raw: Any?) -> Int? {
@@ -453,8 +453,8 @@ enum JobScanner {
 
             let (schedule, command) = splitCron(working)
             let displayName = command.isEmpty ? schedule : command
-            // ID dérivé du contenu (≠ position) → la sélection survit à un réordonnancement du crontab.
-            // Suffixe d'occurrence pour distinguer deux lignes strictement identiques.
+            // ID derived from content (≠ position) → the selection survives a reordering of the crontab.
+            // Occurrence suffix to distinguish two strictly identical lines.
             let configKey = "cron: \(schedule) \(command)"
             let occurrence = seenKeys[configKey, default: 0]
             seenKeys[configKey] = occurrence + 1
@@ -465,7 +465,7 @@ enum JobScanner {
                 kind: .cron,
                 scope: .user,
                 configKey: configKey,
-                sourceLabel: "crontab (utilisateur)",
+                sourceLabel: "crontab (user)",
                 path: nil,
                 symlinkTarget: nil,
                 owningProject: nil,
@@ -508,19 +508,19 @@ enum JobScanner {
     private static func describeCron(_ schedule: String) -> String {
         if schedule.hasPrefix("@") {
             switch schedule {
-            case "@reboot": return "Au démarrage"
-            case "@daily", "@midnight": return "Chaque jour à minuit"
-            case "@hourly": return "Toutes les heures"
-            case "@weekly": return "Chaque semaine"
-            case "@monthly": return "Chaque mois"
-            case "@yearly", "@annually": return "Chaque année"
+            case "@reboot": return "At startup"
+            case "@daily", "@midnight": return "Every day at midnight"
+            case "@hourly": return "Every hour"
+            case "@weekly": return "Every week"
+            case "@monthly": return "Every month"
+            case "@yearly", "@annually": return "Every year"
             default: return schedule
             }
         }
         let fields = schedule.split(separator: " ").map(String.init)
         if fields.count == 5, fields[2] == "*", fields[3] == "*", fields[4] == "*",
            let minute = Int(fields[0]), let hour = Int(fields[1]) {
-            return String(format: "Tous les jours à %02d:%02d", hour, minute)
+            return String(format: "Every day at %02d:%02d", hour, minute)
         }
         return schedule
     }

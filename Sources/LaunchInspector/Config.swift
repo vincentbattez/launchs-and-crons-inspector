@@ -1,7 +1,7 @@
 import Foundation
 
-/// Personnalisation d'un job : renommage, description, groupe, masquage.
-/// Décodage tolérant : un champ absent prend sa valeur par défaut (l'agent peut n'écrire que ce qu'il veut).
+/// Customization of a job: renaming, description, group, hiding.
+/// Tolerant decoding: an absent field takes its default value (the agent can write only what it wants).
 struct ConfigItem: Codable, Sendable {
     var name: String
     var description: String
@@ -24,7 +24,7 @@ struct ConfigItem: Codable, Sendable {
     }
 }
 
-/// Un groupe défini par l'utilisateur. `collapsed` = état d'UI persisté.
+/// A user-defined group. `collapsed` = persisted UI state.
 struct ConfigGroup: Codable, Identifiable, Sendable {
     var id: String
     var name: String
@@ -44,7 +44,7 @@ struct ConfigGroup: Codable, Identifiable, Sendable {
     }
 }
 
-/// Racine du fichier `config.json`.
+/// Root of the `config.json` file.
 struct AppConfig: Codable, Sendable {
     var help: String?
     var version: Int
@@ -79,14 +79,14 @@ struct AppConfig: Codable, Sendable {
     }
 
     static let helpText = """
-        Fichier de personnalisation de LaunchInspector — éditable par Claude Code ou via l'app.
-        • items : dictionnaire clé→personnalisation. La CLÉ est fournie : Label launchd (ex. com.vincent.x) \
-        ou 'cron: <planning> <commande>'. Ne PAS inventer de clés ; l'app crée un stub vide pour chaque job détecté.
-        • item.name : nom affiché à la place du label (vide = label d'origine).
-        • item.description : note libre affichée dans le détail.
-        • item.group : id d'un groupe défini dans 'groups' (absent/null = non groupé).
-        • item.hidden : true = déplace le job dans la section repliée 'Masqués' tout en bas.
-        • groups : liste ordonnée {id, name, collapsed}. PRÉSERVER 'collapsed' (état d'UI) lors d'une édition.
-        • ungroupedCollapsed / hiddenCollapsed : état replié des sections spéciales — à préserver aussi.
+        LaunchInspector customization file — editable by Claude Code or via the app.
+        • items: key→customization dictionary. The KEY is provided: launchd Label (e.g. com.vincent.x) \
+        or 'cron: <schedule> <command>'. Do NOT invent keys; the app creates an empty stub for each detected job.
+        • item.name: name displayed instead of the label (empty = original label).
+        • item.description: free-form note displayed in the detail.
+        • item.group: id of a group defined in 'groups' (absent/null = ungrouped).
+        • item.hidden: true = moves the job into the collapsed 'Hidden' section at the very bottom.
+        • groups: ordered list {id, name, collapsed}. PRESERVE 'collapsed' (UI state) when editing.
+        • ungroupedCollapsed / hiddenCollapsed: collapsed state of the special sections — preserve these too.
         """
 }

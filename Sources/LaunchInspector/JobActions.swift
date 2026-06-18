@@ -1,6 +1,6 @@
 import Foundation
 
-/// Exécute un binaire et capture stdout / stderr / code de sortie (et stdin optionnel pour `crontab -`).
+/// Runs a binary and captures stdout / stderr / exit code (and optional stdin for `crontab -`).
 extension Shell {
     struct Out: Sendable { let stdout: String; let stderr: String; let code: Int32 }
 
@@ -31,14 +31,14 @@ extension Shell {
     }
 }
 
-/// Actions qui MODIFIENT le système : désactiver / activer, supprimer (vers corbeille), restaurer.
-/// Tout passe hors du main thread (Process bloquant). Les opérations qui touchent `/Library`
-/// (agents globaux + daemons) sont regroupées dans un seul `osascript … with administrator privileges`
-/// → un seul prompt mot de passe par action.
+/// Actions that MODIFY the system: disable / enable, delete (to trash), restore.
+/// Everything runs off the main thread (Process is blocking). Operations that touch `/Library`
+/// (global agents + daemons) are grouped into a single `osascript … with administrator privileges`
+/// → a single password prompt per action.
 enum JobActions {
     struct Outcome: Sendable { let ok: Bool; let message: String }
 
-    // MARK: - Activer / désactiver
+    // MARK: - Enable / disable
 
     static func setEnabled(_ jobs: [ScheduledJob], enabled: Bool) -> Outcome {
         let uid = getuid()
@@ -80,7 +80,7 @@ enum JobActions {
         return Outcome(ok: errors.isEmpty, message: errors.isEmpty ? "OK" : errors.joined(separator: "\n"))
     }
 
-    // MARK: - Supprimer (vers la corbeille interne)
+    // MARK: - Delete (to the internal trash)
 
     static func delete(_ jobs: [ScheduledJob]) -> (Outcome, [TrashEntry]) {
         TrashStore.ensureDir()
@@ -88,9 +88,9 @@ enum JobActions {
         var entries: [TrashEntry] = []
         var errors: [String] = []
 
-        // Crons : retirer les lignes effectivement présentes en une seule réécriture du crontab.
-        // On ne crée une entrée de corbeille que pour les lignes réellement retirées : si le crontab
-        // a changé entre le scan et l'action, on n'enregistre pas un cron qui n'a pas été supprimé.
+        // Crons: remove the lines actually present in a single crontab rewrite.
+        // We only create a trash entry for the lines actually removed: if the crontab
+        // changed between the scan and the action, we don't record a cron that wasn't deleted.
         let crons = jobs.filter { $0.kind == .cron }
         if !crons.isEmpty {
             var lines = readCrontab().components(separatedBy: "\n")
@@ -102,7 +102,7 @@ enum JobActions {
                 }
             }
             if removed.isEmpty {
-                errors.append("Cron introuvable dans le crontab (modifié entre-temps ?).")
+                errors.append("Cron not found in the crontab (modified in the meantime?).")
             } else {
                 let r = writeCrontab(lines)
                 if r.ok {
@@ -116,20 +116,20 @@ enum JobActions {
             }
         }
 
-        // launchd : sauvegarder les octets + commandes (bootout best-effort, rm fait foi).
+        // launchd: back up the bytes + commands (bootout best-effort, rm is authoritative).
         var rootCmds: [String] = []
         var rootEntries: [TrashEntry] = []
         var rootBlobs: [String] = []
         for job in jobs where job.kind != .cron {
             guard let path = job.path, let label = job.label else { continue }
             guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else {
-                errors.append("\(job.displayName) : lecture impossible"); continue
+                errors.append("\(job.displayName): unable to read"); continue
             }
             var st = stat()
             let haveStat = stat(path, &st) == 0
             let blob = UUID().uuidString + ".plist"
             do { try data.write(to: TrashStore.blobURL(blob)) }
-            catch { errors.append("\(job.displayName) : sauvegarde corbeille impossible"); continue }
+            catch { errors.append("\(job.displayName): unable to back up to trash"); continue }
 
             let entry = TrashEntry(
                 id: UUID().uuidString, date: Date(), displayName: job.displayName,
@@ -149,7 +149,7 @@ enum JobActions {
                 if rm.code == 0 {
                     entries.append(entry)
                 } else {
-                    errors.append("\(job.displayName) : \(rm.stderr.isEmpty ? "suppression impossible" : rm.stderr)")
+                    errors.append("\(job.displayName): \(rm.stderr.isEmpty ? "unable to delete" : rm.stderr)")
                     try? FileManager.default.removeItem(at: TrashStore.blobURL(blob))
                 }
             }
@@ -164,21 +164,21 @@ enum JobActions {
             }
         }
         let ok = errors.isEmpty
-        return (Outcome(ok: ok, message: ok ? "Supprimé" : errors.joined(separator: "\n")), entries)
+        return (Outcome(ok: ok, message: ok ? "Deleted" : errors.joined(separator: "\n")), entries)
     }
 
-    // MARK: - Restaurer
+    // MARK: - Restore
 
     static func restore(_ entry: TrashEntry) -> Outcome {
         if let line = entry.cronLine {
             return rewriteCrontab { addCron($0, line) }
         }
         guard let path = entry.originalPath, let blob = entry.blobFile, let label = entry.label else {
-            return Outcome(ok: false, message: "Entrée de corbeille invalide.")
+            return Outcome(ok: false, message: "Invalid trash entry.")
         }
         let blobPath = TrashStore.blobURL(blob).path
         guard FileManager.default.fileExists(atPath: blobPath) else {
-            return Outcome(ok: false, message: "Fichier de sauvegarde introuvable.")
+            return Outcome(ok: false, message: "Backup file not found.")
         }
         let uid = getuid()
         let domain = entry.kind == .launchDaemon ? "system" : "gui/\(uid)"
@@ -192,7 +192,7 @@ enum JobActions {
                 + " && /bin/chmod \(mode) \(shArg(path))"
                 + " && { /bin/launchctl enable \(shArg(dl)) ; /bin/launchctl bootstrap \(domain) \(shArg(path)) ; true ; }"
             let out = runRoot(cmd)
-            return Outcome(ok: out.code == 0, message: out.code == 0 ? "Restauré" : adminError(out))
+            return Outcome(ok: out.code == 0, message: out.code == 0 ? "Restored" : adminError(out))
         } else {
             do {
                 if FileManager.default.fileExists(atPath: path) {
@@ -200,19 +200,19 @@ enum JobActions {
                 }
                 try FileManager.default.copyItem(atPath: blobPath, toPath: path)
             } catch {
-                return Outcome(ok: false, message: "Restauration impossible : \(error.localizedDescription)")
+                return Outcome(ok: false, message: "Restore failed: \(error.localizedDescription)")
             }
             _ = Shell.capture("/bin/launchctl", ["enable", dl])
             _ = Shell.capture("/bin/launchctl", ["bootstrap", domain, path])
-            return Outcome(ok: true, message: "Restauré")
+            return Outcome(ok: true, message: "Restored")
         }
     }
 
-    // MARK: - Crontab (lecture / réécriture)
+    // MARK: - Crontab (read / rewrite)
 
     private static func readCrontab() -> String {
         let out = Shell.capture("/usr/bin/crontab", ["-l"])
-        return out.code == 0 ? out.stdout : "" // pas de crontab → on part d'un contenu vide
+        return out.code == 0 ? out.stdout : "" // no crontab → start from empty content
     }
 
     private static func rewriteCrontab(_ transform: ([String]) -> [String]) -> Outcome {
@@ -223,7 +223,7 @@ enum JobActions {
     private static func writeCrontab(_ lines: [String]) -> Outcome {
         let out = Shell.capture("/usr/bin/crontab", ["-"], stdin: lines.joined(separator: "\n"))
         return Outcome(ok: out.code == 0,
-                       message: out.code == 0 ? "OK" : (out.stderr.isEmpty ? "Écriture du crontab impossible." : out.stderr))
+                       message: out.code == 0 ? "OK" : (out.stderr.isEmpty ? "Unable to write the crontab." : out.stderr))
     }
 
     private static func toggleCron(_ lines: [String], _ jobs: [ScheduledJob], enabled: Bool) -> [String] {
@@ -247,35 +247,35 @@ enum JobActions {
         var result = lines
         guard !result.contains(line) else { return result }
         if let last = result.last, last.isEmpty {
-            result.insert(line, at: result.count - 1) // garder la ligne vide finale
+            result.insert(line, at: result.count - 1) // keep the trailing empty line
         } else {
             result.append(line)
         }
         return result
     }
 
-    // MARK: - Escalade de privilèges + échappement
+    // MARK: - Privilege escalation + escaping
 
     private static func runRoot(_ shellCommand: String) -> Shell.Out {
         let script = "do shell script \"\(appleEscape(shellCommand))\" with administrator privileges"
         return Shell.capture("/usr/bin/osascript", ["-e", script])
     }
 
-    /// Échappe pour la chaîne AppleScript de `do shell script "…"`.
+    /// Escapes for the AppleScript string of `do shell script "…"`.
     private static func appleEscape(_ s: String) -> String {
         s.replacingOccurrences(of: "\\", with: "\\\\")
          .replacingOccurrences(of: "\"", with: "\\\"")
     }
 
-    /// Entoure d'apostrophes pour le shell (gère espaces et apostrophes dans les chemins).
+    /// Wraps in single quotes for the shell (handles spaces and quotes in paths).
     private static func shArg(_ s: String) -> String {
         "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 
     private static func adminError(_ out: Shell.Out) -> String {
         if out.stderr.contains("-128") || out.stderr.lowercased().contains("user canceled") {
-            return "Action annulée (mot de passe administrateur non saisi)."
+            return "Action cancelled (administrator password not entered)."
         }
-        return out.stderr.isEmpty ? "L'action administrateur a échoué." : out.stderr
+        return out.stderr.isEmpty ? "The administrator action failed." : out.stderr
     }
 }

@@ -7,9 +7,9 @@ struct LaunchInspectorApp: App {
     @State private var model = AppModel()
 
     init() {
-        // Mode JSON : `LaunchInspector --dump-json` émet tous les jobs résolus (clé de config exacte +
-        // commande, programme, planning, projet d'origine) sur stdout. Destiné à Claude Code pour
-        // remplir name/description dans config.json sans avoir à localiser/parser les .plist lui-même.
+        // JSON mode: `LaunchInspector --dump-json` emits all resolved jobs (exact config key +
+        // command, program, schedule, originating project) to stdout. Intended for Claude Code to
+        // fill in name/description in config.json without having to locate/parse the .plist itself.
         if CommandLine.arguments.contains("--dump-json") {
             let arr: [[String: Any]] = JobScanner.scanAll().map { job in
                 var d: [String: Any] = [
@@ -38,14 +38,14 @@ struct LaunchInspectorApp: App {
             }
             guard let data = try? JSONSerialization.data(withJSONObject: arr, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]),
                   let json = String(data: data, encoding: .utf8) else {
-                FileHandle.standardError.write(Data("Échec de la sérialisation JSON des jobs.\n".utf8))
+                FileHandle.standardError.write(Data("Failed to serialize jobs to JSON.\n".utf8))
                 exit(1)
             }
             print(json)
             exit(0)
         }
 
-        // Mode headless : `swift run LaunchInspector --dump` liste les jobs (config appliquée) sans ouvrir de fenêtre.
+        // Headless mode: `swift run LaunchInspector --dump` lists the jobs (config applied) without opening a window.
         if CommandLine.arguments.contains("--dump") {
             let config = AppModel.loadConfigFromDisk()
             for job in AppModel.applyConfig(JobScanner.scanAll(), config) {
@@ -55,10 +55,10 @@ struct LaunchInspectorApp: App {
                 }
                 let pid = job.pid.map { " pid \($0)" } ?? ""
                 let runs = job.runCount.map { " runs=\($0)" } ?? ""
-                let hidden = job.isHidden ? " [MASQUÉ]" : ""
-                let dimmed = job.isDimmed ? " [grisé]" : ""
+                let hidden = job.isHidden ? " [HIDDEN]" : ""
+                let dimmed = job.isDimmed ? " [dimmed]" : ""
                 print("[\(job.enabledState.label)] \(job.kind.label) · \(job.displayName)\(groupName)\(hidden)\(dimmed)")
-                print("    plan : \(job.scheduleDescription)\(pid)\(runs)")
+                print("    schedule : \(job.scheduleDescription)\(pid)\(runs)")
                 if let desc = job.customDescription { print("    desc : \(desc)") }
             }
             exit(0)
@@ -73,7 +73,7 @@ struct LaunchInspectorApp: App {
         .defaultSize(width: 1150, height: 720)
         .commands {
             CommandGroup(after: .toolbar) {
-                Button("Rafraîchir") {
+                Button("Refresh") {
                     Task { await model.refresh() }
                 }
                 .keyboardShortcut("r", modifiers: .command)
@@ -82,7 +82,7 @@ struct LaunchInspectorApp: App {
     }
 }
 
-/// Garantit l'apparition d'une fenêtre au premier plan même lancé en CLI (`swift run`).
+/// Ensures a window appears in the foreground even when launched from the CLI (`swift run`).
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
