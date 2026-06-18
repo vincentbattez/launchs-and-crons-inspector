@@ -346,41 +346,47 @@ private struct LogsView: View {
 
     private var logScroll: some View {
         let hiddenCount = max(0, streamer.lines.count - visibleCount)
-        // Two axes: no line wrapping (unwrap) → long lines scroll horizontally.
-        return ScrollView([.vertical, .horizontal]) {
-            LazyVStack(alignment: .leading, spacing: 1) {
-                if hiddenCount > 0 {
-                    Button {
-                        visibleCount += pageSize
-                    } label: {
-                        Label("Show \(min(pageSize, hiddenCount)) earlier (\(hiddenCount) hidden)",
-                              systemImage: "chevron.up")
-                            .font(.caption)
+        // Nested single-axis scroll views (not one two-axis ScrollView, which doesn't wire the
+        // horizontal gesture on macOS): outer scrolls rows vertically, inner shifts the whole
+        // stack horizontally so long unwrapped lines move together.
+        return ScrollView(.vertical) {
+            ScrollView(.horizontal) {
+                // Plain VStack (not lazy): ≤ visibleCount rows is cheap and a non-lazy stack
+                // measures its widest child correctly, so wide content actually overflows.
+                VStack(alignment: .leading, spacing: 1) {
+                    if hiddenCount > 0 {
+                        Button {
+                            visibleCount += pageSize
+                        } label: {
+                            Label("Show \(min(pageSize, hiddenCount)) earlier (\(hiddenCount) hidden)",
+                                  systemImage: "chevron.up")
+                                .font(.caption)
+                        }
+                        .buttonStyle(.borderless)
+                        .padding(.vertical, 4)
                     }
-                    .buttonStyle(.borderless)
-                    .padding(.vertical, 4)
-                }
-                ForEach(streamer.lines.suffix(visibleCount)) { line in
-                    HStack(alignment: .firstTextBaseline) {
-                        Text("\(line.id)")
-                            .foregroundStyle(.tertiary)
-                            .frame(alignment: .trailing)
-                            .fixedSize()
-                        Text(line.text)
-                            .foregroundStyle(color(for: line.severity))
-                            .textSelection(.enabled)
-                            .lineLimit(1)
-                            .fixedSize(horizontal: true, vertical: false)
+                    ForEach(streamer.lines.suffix(visibleCount)) { line in
+                        HStack(alignment: .firstTextBaseline) {
+                            Text("\(line.id)")
+                                .foregroundStyle(.tertiary)
+                                .frame(alignment: .trailing)
+                                .fixedSize()
+                            Text(line.text)
+                                .foregroundStyle(color(for: line.severity))
+                                .textSelection(.enabled)
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
+                        }
+                        .font(.system(.caption2, design: .monospaced))
+                        .id(line.id)
                     }
-                    .font(.system(.caption2, design: .monospaced))
-                    .id(line.id)
                 }
+                // minWidth (not a fixed width): fills the viewport when lines are
+                // short (flush left, no margin), overflows when they are long (scroll).
+                .frame(minWidth: viewportWidth, alignment: .leading)
             }
-            // minWidth (not a fixed width): fills the viewport when lines are
-            // short (flush left, no margin), overflows when they are long (scroll).
-            .frame(minWidth: viewportWidth, alignment: .leading)
         }
-        // Start anchored at the end (newest line, flush left) and follow the live tail.
+        // Start anchored at the end (newest line) and follow the live tail.
         .defaultScrollAnchor(.bottomLeading)
         .frame(height: 240)
         .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
