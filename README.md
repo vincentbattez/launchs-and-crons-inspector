@@ -6,26 +6,18 @@ A macOS (SwiftUI) app that lists **your** cron jobs and launchd `.plist` files, 
 
 ## Install
 
-**Download** — grab the latest `.dmg` from the
+**Homebrew:**
+
+```sh
+brew install --cask vincentbattez/tap/launch-inspector
+```
+
+**Or download** the latest `.dmg` from the
 [Releases](https://github.com/vincentbattez/launchs-and-crons-inspector/releases) page,
-open it, and drag **LaunchInspector** into **Applications**. The build is unsigned, so on
-first launch **right-click the app → Open** once to get past Gatekeeper.
+open it, and drag **LaunchInspector** into **Applications**.
 
-**Homebrew** (builds from source — no Apple Developer ID needed, so Gatekeeper launches
-it without complaint):
-
-```sh
-brew install vincentbattez/tap/launch-inspector
-```
-
-Then make it launchable from Finder / Spotlight / Launchpad:
-
-```sh
-ln -sf "$(brew --prefix launch-inspector)/libexec/LaunchInspector.app" /Applications/
-```
-
-`brew upgrade launch-inspector` to update. The headless modes are also on your `PATH`
-as `launch-inspector --dump` / `launch-inspector --dump-json`.
+The build is unsigned, so on **first launch right-click the app → Open** once to get past
+Gatekeeper. After that, the app **updates itself** (Sparkle) — no need to reinstall.
 
 ## Requirements
 

@@ -1,0 +1,56 @@
+# XcodeGen spec — run `xcodegen` to (re)generate LaunchInspector.xcodeproj.
+# The .xcodeproj and the generated Info.plist are gitignored; this file is the
+# source of truth. Used for the release build (Sparkle + signing); day-to-day
+# dev can still use `swift run` via Package.swift.
+name: LaunchInspector
+options:
+  bundleIdPrefix: com.vincentbattez
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    MARKETING_VERSION: "0.3.0"
+    CURRENT_PROJECT_VERSION: "0.3.0"
+    SWIFT_VERSION: "6.0"
+
+packages:
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: "2.9.3"
+
+targets:
+  LaunchInspector:
+    type: application
+    platform: macOS
+    sources:
+      - Sources/LaunchInspector
+      - Resources/Assets.xcassets
+    dependencies:
+      - package: Sparkle
+    settings:
+      base:
+        PRODUCT_NAME: LaunchInspector
+        PRODUCT_BUNDLE_IDENTIFIER: com.vincentbattez.launch-inspector
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # Unsigned / ad-hoc — no Apple Developer ID, no notarization.
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGNING_REQUIRED: "NO"
+        ENABLE_HARDENED_RUNTIME: "NO"
+    info:
+      path: Resources/Info.plist
+      properties:
+        CFBundleDisplayName: LaunchInspector
+        CFBundleName: LaunchInspector
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        LSMinimumSystemVersion: "14.0"
+        LSApplicationCategoryType: public.app-category.developer-tools
+        NSHumanReadableCopyright: "© 2026 Vincent Battez. MIT License."
+        NSHighResolutionCapable: true
+        # Sparkle auto-update
+        SUFeedURL: https://raw.githubusercontent.com/vincentbattez/launchs-and-crons-inspector/main/appcast.xml
+        SUPublicEDKey: Vowo0ju9ztWR2y6Pd0Naw41zU32bRCujI7oqJGG733I=
+        SUEnableAutomaticChecks: true

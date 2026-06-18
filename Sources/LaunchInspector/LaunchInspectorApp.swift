@@ -78,6 +78,9 @@ struct LaunchInspectorApp: App {
                 }
                 .keyboardShortcut("r", modifiers: .command)
             }
+            #if canImport(Sparkle)
+            CheckForUpdatesCommand()
+            #endif
         }
     }
 }

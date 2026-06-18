@@ -4,3 +4,4 @@
 .swiftpm/
 config.json
 dist/
+Resources/Info.plist

@@ -39,28 +39,27 @@ func render(_ px: Int) -> Data {
 
 let fm = FileManager.default
 let root = URL(fileURLWithPath: fm.currentDirectoryPath)
-let iconset = root.appendingPathComponent("Resources/AppIcon.iconset")
-try? fm.removeItem(at: iconset)
-try! fm.createDirectory(at: iconset, withIntermediateDirectories: true)
 
-// (filename, pixel size) per Apple's iconset spec
-let entries: [(String, Int)] = [
-    ("icon_16x16", 16), ("icon_16x16@2x", 32),
-    ("icon_32x32", 32), ("icon_32x32@2x", 64),
-    ("icon_128x128", 128), ("icon_128x128@2x", 256),
-    ("icon_256x256", 256), ("icon_256x256@2x", 512),
-    ("icon_512x512", 512), ("icon_512x512@2x", 1024),
+// (filename, "WxH", scale, pixel size) per Apple's macOS AppIcon spec.
+let entries: [(file: String, size: String, scale: String, px: Int)] = [
+    ("icon_16x16.png", "16x16", "1x", 16), ("icon_16x16@2x.png", "16x16", "2x", 32),
+    ("icon_32x32.png", "32x32", "1x", 32), ("icon_32x32@2x.png", "32x32", "2x", 64),
+    ("icon_128x128.png", "128x128", "1x", 128), ("icon_128x128@2x.png", "128x128", "2x", 256),
+    ("icon_256x256.png", "256x256", "1x", 256), ("icon_256x256@2x.png", "256x256", "2x", 512),
+    ("icon_512x512.png", "512x512", "1x", 512), ("icon_512x512@2x.png", "512x512", "2x", 1024),
 ]
 var cache: [Int: Data] = [:]
-for (name, px) in entries {
-    let data = cache[px] ?? render(px)
-    cache[px] = data
-    try! data.write(to: iconset.appendingPathComponent("\(name).png"))
-}
+func png(_ px: Int) -> Data { let d = cache[px] ?? render(px); cache[px] = d; return d }
 
-let p = Process()
-p.executableURL = URL(fileURLWithPath: "/usr/bin/iconutil")
-p.arguments = ["-c", "icns", iconset.path, "-o", root.appendingPathComponent("Resources/AppIcon.icns").path]
-try! p.run(); p.waitUntilExit()
-try? fm.removeItem(at: iconset)
-print("Wrote Resources/AppIcon.icns")
+// 1. Asset catalog (what the Xcode app target consumes).
+let appiconset = root.appendingPathComponent("Resources/Assets.xcassets/AppIcon.appiconset")
+try? fm.removeItem(at: appiconset)
+try! fm.createDirectory(at: appiconset, withIntermediateDirectories: true)
+for e in entries { try! png(e.px).write(to: appiconset.appendingPathComponent(e.file)) }
+let images = entries.map { "    { \"idiom\" : \"mac\", \"size\" : \"\($0.size)\", \"scale\" : \"\($0.scale)\", \"filename\" : \"\($0.file)\" }" }.joined(separator: ",\n")
+let contents = "{\n  \"images\" : [\n\(images)\n  ],\n  \"info\" : { \"version\" : 1, \"author\" : \"xcode\" }\n}\n"
+try! contents.write(to: appiconset.appendingPathComponent("Contents.json"), atomically: true, encoding: .utf8)
+// Minimal top-level Assets.xcassets Contents.json.
+try! "{\n  \"info\" : { \"version\" : 1, \"author\" : \"xcode\" }\n}\n"
+    .write(to: root.appendingPathComponent("Resources/Assets.xcassets/Contents.json"), atomically: true, encoding: .utf8)
+print("Wrote Resources/Assets.xcassets/AppIcon.appiconset")
