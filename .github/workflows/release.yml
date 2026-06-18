@@ -22,10 +22,12 @@ jobs:
 
       - name: Install tooling
         run: |
+          set -euo pipefail
           brew install xcodegen
-          SP_URL=$(curl -s https://api.github.com/repos/sparkle-project/Sparkle/releases/latest \
-            | grep browser_download_url | grep '\.tar\.xz' | head -1 | cut -d'"' -f4)
-          mkdir -p /tmp/sparkle && curl -sL "$SP_URL" | tar -xJ -C /tmp/sparkle
+          SP_VER=2.9.3
+          curl -fsSL "https://github.com/sparkle-project/Sparkle/releases/download/${SP_VER}/Sparkle-${SP_VER}.tar.xz" -o /tmp/sparkle.tar.xz
+          mkdir -p /tmp/sparkle && tar -xJf /tmp/sparkle.tar.xz -C /tmp/sparkle
+          test -x /tmp/sparkle/bin/sign_update # fail early if the Sparkle tools are missing
 
       - name: Build .dmg
         run: bash scripts/make-dmg.sh "${GITHUB_REF_NAME#v}"
