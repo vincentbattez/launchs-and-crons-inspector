@@ -39,8 +39,9 @@ jobs:
             ### Install
             Download the `.dmg`, open it, drag **LaunchInspector** into **Applications**.
 
-            First launch (unsigned build): **right-click the app → Open** once to get
-            past Gatekeeper. After that it auto-updates via Sparkle. Or:
+            First launch (unsigned build) is blocked by Gatekeeper: try to open it, then
+            **System Settings → Privacy & Security → "Open Anyway"** (macOS 14: right-click
+            → Open). After that it auto-updates via Sparkle. Or:
             `brew install --cask vincentbattez/tap/launch-inspector`.
 
       - name: Update signed appcast on main

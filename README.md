@@ -16,8 +16,10 @@ brew install --cask vincentbattez/tap/launch-inspector
 [Releases](https://github.com/vincentbattez/launchs-and-crons-inspector/releases) page,
 open it, and drag **LaunchInspector** into **Applications**.
 
-The build is unsigned, so on **first launch right-click the app → Open** once to get past
-Gatekeeper. After that, the app **updates itself** (Sparkle) — no need to reinstall.
+The build is unsigned, so the **first launch is blocked by Gatekeeper**: try to open it,
+then go to **System Settings → Privacy & Security → "Open Anyway"** (on macOS 14 you can
+instead **right-click → Open**). After that, the app **updates itself** (Sparkle) — no
+need to reinstall.
 
 ## Requirements
 
