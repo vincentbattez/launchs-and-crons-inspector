@@ -1,24 +1,36 @@
 name: Release
 
-# Build LaunchInspector.app and attach a .dmg to the GitHub Release whenever a
-# version tag is pushed:  git tag v0.2.0 && git push origin v0.2.0
+# On a version tag (git tag v0.3.0 && git push origin v0.3.0):
+#   1. build LaunchInspector.app (Xcode, Sparkle embedded) and a .dmg
+#   2. attach the .dmg to the GitHub Release
+#   3. update the signed Sparkle appcast.xml on main (the auto-update feed)
+#   4. bump the Homebrew cask in vincentbattez/homebrew-tap
 on:
   push:
     tags: ["v*"]
 
 permissions:
-  contents: write # needed to create/update the Release and upload the .dmg
+  contents: write # create the Release, upload the .dmg, push appcast.xml to main
 
 jobs:
-  dmg:
-    runs-on: macos-15 # ships Xcode 16 / Swift 6 by default
+  release:
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main # we commit the updated appcast.xml back to main
+
+      - name: Install tooling
+        run: |
+          brew install xcodegen
+          SP_URL=$(curl -s https://api.github.com/repos/sparkle-project/Sparkle/releases/latest \
+            | grep browser_download_url | grep '\.tar\.xz' | head -1 | cut -d'"' -f4)
+          mkdir -p /tmp/sparkle && curl -sL "$SP_URL" | tar -xJ -C /tmp/sparkle
 
       - name: Build .dmg
         run: bash scripts/make-dmg.sh "${GITHUB_REF_NAME#v}"
 
-      - name: Publish to the Release
+      - name: Publish .dmg to the Release
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*.dmg
@@ -28,47 +40,38 @@ jobs:
             Download the `.dmg`, open it, drag **LaunchInspector** into **Applications**.
 
             First launch (unsigned build): **right-click the app → Open** once to get
-            past Gatekeeper, or `brew install vincentbattez/tap/launch-inspector`.
+            past Gatekeeper. After that it auto-updates via Sparkle. Or:
+            `brew install --cask vincentbattez/tap/launch-inspector`.
 
-  # Keep the Homebrew formula in sync with the new tag. Skipped unless the
-  # TAP_PUSH_TOKEN secret is set (a PAT with contents:write on homebrew-tap) —
-  # the default GITHUB_TOKEN cannot push to a different repo.
-  bump-formula:
-    needs: dmg
-    runs-on: macos-15
-    steps:
-      - name: Check for tap token
-        id: guard
+      - name: Update signed appcast on main
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/LaunchInspector-${V}.dmg"
+          SPARKLE_BIN=/tmp/sparkle/bin bash scripts/make-appcast.sh "$V" "dist/LaunchInspector-${V}.dmg" "$URL" appcast.xml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add appcast.xml
+          git commit -m "appcast: $V" || { echo "no change"; exit 0; }
+          git push origin HEAD:main
+
+      # Skipped unless TAP_PUSH_TOKEN is set (a PAT with contents:write on
+      # homebrew-tap) — the default GITHUB_TOKEN cannot push to another repo.
+      - name: Bump Homebrew cask
         env:
           TOKEN: ${{ secrets.TAP_PUSH_TOKEN }}
         run: |
           if [ -z "$TOKEN" ]; then
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::TAP_PUSH_TOKEN not set — skipping formula bump."
-          else
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::TAP_PUSH_TOKEN not set — skipping cask bump."
+            exit 0
           fi
-
-      - name: Checkout source (bump script)
-        if: steps.guard.outputs.enabled == 'true'
-        uses: actions/checkout@v4
-        with:
-          path: src
-
-      - name: Checkout tap
-        if: steps.guard.outputs.enabled == 'true'
-        uses: actions/checkout@v4
-        with:
-          repository: vincentbattez/homebrew-tap
-          token: ${{ secrets.TAP_PUSH_TOKEN }}
-          path: tap
-
-      - name: Bump and push
-        if: steps.guard.outputs.enabled == 'true'
-        run: |
-          bash src/scripts/bump-formula.sh "${GITHUB_REF_NAME#v}" tap/Formula/launch-inspector.rb
-          cd tap
+          V="${GITHUB_REF_NAME#v}"
+          SHA=$(shasum -a 256 "dist/LaunchInspector-${V}.dmg" | awk '{print $1}')
+          git clone "https://x-access-token:${TOKEN}@github.com/vincentbattez/homebrew-tap.git" /tmp/tap
+          bash scripts/bump-cask.sh "$V" "$SHA" /tmp/tap/Casks/launch-inspector.rb
+          cd /tmp/tap
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -am "launch-inspector ${GITHUB_REF_NAME#v}" || { echo "no change"; exit 0; }
+          git commit -am "launch-inspector $V" || { echo "no change"; exit 0; }
           git push
