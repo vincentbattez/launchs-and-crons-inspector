@@ -24,7 +24,9 @@ need to reinstall.
 ## Requirements
 
 - macOS 14 (Sonoma) or later
-- Swift 6.0 / Xcode 16 (to build)
+- Swift 6.0 / Xcode 16+ (to build from source)
+- [XcodeGen](https://github.com/yonaskolb/XcodeGen) — only for the release build (the
+  Sparkle-enabled `.app`/`.dmg`); plain `swift build` dev does not need it
 
 ## Features
 
@@ -102,6 +104,16 @@ swift build --scratch-path /tmp/li-build && /tmp/li-build/debug/LaunchInspector
 ```sh
 /tmp/li-build/debug/LaunchInspector --dump-json > /tmp/li-jobs.json
 ```
+
+> The commands above use the plain SwiftPM build, which has **no auto-updater** (Sparkle
+> is gated behind `#if canImport(Sparkle)`). The distributed app — Sparkle embedded, app
+> icon, ad-hoc signed, packaged as a `.dmg` — is built from the Xcode project:
+> ```sh
+> brew install xcodegen        # once
+> scripts/make-dmg.sh 0.0.0    # → dist/LaunchInspector-0.0.0.dmg
+> ```
+> Releases are automated: pushing a tag `vX.Y.Z` runs `.github/workflows/release.yml`,
+> which builds the `.dmg`, signs the Sparkle appcast, and bumps the Homebrew cask.
 
 ## Configuration
 
