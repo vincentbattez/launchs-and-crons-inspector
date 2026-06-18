@@ -43,6 +43,7 @@ class LaunchInspector < Formula
     (app/"Contents/Resources").mkpath
 
     cp bin_path, macos_dir/"LaunchInspector"
+    cp "Resources/AppIcon.icns", app/"Contents/Resources/AppIcon.icns"
     (app/"Contents/Info.plist").write info_plist_content
 
     # Ad-hoc sign so Gatekeeper accepts the bundle without an Apple Developer ID.
@@ -86,6 +87,8 @@ class LaunchInspector < Formula
           <string>LaunchInspector</string>
           <key>CFBundleIdentifier</key>
           <string>com.vincentbattez.launch-inspector</string>
+          <key>CFBundleIconFile</key>
+          <string>AppIcon</string>
           <key>CFBundlePackageType</key>
           <string>APPL</string>
           <key>CFBundleShortVersionString</key>
@@ -94,6 +97,10 @@ class LaunchInspector < Formula
           <string>#{version}</string>
           <key>LSMinimumSystemVersion</key>
           <string>14.0</string>
+          <key>LSApplicationCategoryType</key>
+          <string>public.app-category.developer-tools</string>
+          <key>NSHumanReadableCopyright</key>
+          <string>© 2026 Vincent Battez. MIT License.</string>
           <key>NSHighResolutionCapable</key>
           <true/>
       </dict>

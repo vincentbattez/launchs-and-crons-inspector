@@ -29,3 +29,46 @@ jobs:
 
             First launch (unsigned build): **right-click the app → Open** once to get
             past Gatekeeper, or `brew install vincentbattez/tap/launch-inspector`.
+
+  # Keep the Homebrew formula in sync with the new tag. Skipped unless the
+  # TAP_PUSH_TOKEN secret is set (a PAT with contents:write on homebrew-tap) —
+  # the default GITHUB_TOKEN cannot push to a different repo.
+  bump-formula:
+    needs: dmg
+    runs-on: macos-15
+    steps:
+      - name: Check for tap token
+        id: guard
+        env:
+          TOKEN: ${{ secrets.TAP_PUSH_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::TAP_PUSH_TOKEN not set — skipping formula bump."
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout source (bump script)
+        if: steps.guard.outputs.enabled == 'true'
+        uses: actions/checkout@v4
+        with:
+          path: src
+
+      - name: Checkout tap
+        if: steps.guard.outputs.enabled == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: vincentbattez/homebrew-tap
+          token: ${{ secrets.TAP_PUSH_TOKEN }}
+          path: tap
+
+      - name: Bump and push
+        if: steps.guard.outputs.enabled == 'true'
+        run: |
+          bash src/scripts/bump-formula.sh "${GITHUB_REF_NAME#v}" tap/Formula/launch-inspector.rb
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "launch-inspector ${GITHUB_REF_NAME#v}" || { echo "no change"; exit 0; }
+          git push
