@@ -36,8 +36,12 @@ struct LaunchInspectorApp: App {
                 if !job.machServices.isEmpty { d["machServices"] = job.machServices }
                 return d
             }
-            let data = try! JSONSerialization.data(withJSONObject: arr, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
-            print(String(data: data, encoding: .utf8)!)
+            guard let data = try? JSONSerialization.data(withJSONObject: arr, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]),
+                  let json = String(data: data, encoding: .utf8) else {
+                FileHandle.standardError.write(Data("Échec de la sérialisation JSON des jobs.\n".utf8))
+                exit(1)
+            }
+            print(json)
             exit(0)
         }
 

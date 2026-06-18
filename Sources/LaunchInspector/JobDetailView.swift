@@ -342,6 +342,7 @@ private struct LogsView: View {
                             Text("\(line.id)")
                                 .foregroundStyle(.tertiary)
                                 .frame(minWidth: 44, alignment: .trailing)
+                                .fixedSize()
                             Text(line.text)
                                 .foregroundStyle(color(for: line.severity))
                                 .textSelection(.enabled)

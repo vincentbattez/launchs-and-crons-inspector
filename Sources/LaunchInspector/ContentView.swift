@@ -79,7 +79,7 @@ struct ContentView: View {
                 })
             } else {
                 ContentUnavailableView(
-                    selection.isEmpty ? "Sélectionne un job" : "\(selection.count) jobs sélectionnés",
+                    selection.isEmpty ? "Sélectionne un job" : selectionTitle,
                     systemImage: "list.bullet.rectangle",
                     description: Text(selection.isEmpty
                         ? "Choisis un cron ou un agent pour voir le détail."
@@ -101,7 +101,10 @@ struct ContentView: View {
             Button("Supprimer", role: .destructive) {
                 let ids = pendingDeleteIDs
                 pendingDeleteIDs = []
-                Task { await model.delete(ids: ids) }
+                Task {
+                    await model.delete(ids: ids)
+                    selection.subtract(ids) // évite une sélection fantôme sur un job supprimé
+                }
             }
             Button("Annuler", role: .cancel) { pendingDeleteIDs = [] }
         } message: {
@@ -119,13 +122,17 @@ struct ContentView: View {
             await model.refresh()
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(10))
-                await model.refresh()
+                await model.refresh(userInitiated: false) // poll de fond : pas d'indicateur de scan
             }
         }
     }
 
     private var subtitle: String {
         "\(model.jobs.count) jobs · \(model.enabledCount) activés · \(model.disabledCount) désactivés · \(model.hiddenCount) masqués"
+    }
+
+    private var selectionTitle: String {
+        selection.count == 1 ? "1 job sélectionné" : "\(selection.count) jobs sélectionnés"
     }
 
     // MARK: - Suppression
@@ -163,10 +170,14 @@ struct ContentView: View {
                 StatusDot(job: job).dimmed(job.isDimmed)
             }
             .width(22)
+            .customizationID("status")
+            .disabledCustomizationBehavior(.all)        // colonne d'ancrage : toujours en tête, non déplaçable
 
             TableColumn("Nom", value: \.displayNameSortKey) { job in
                 NameCell(job: job).dimmed(job.isDimmed)
             }
+            .customizationID("name")
+            .disabledCustomizationBehavior([.reorder, .visibility])  // en tête, ni déplaçable ni masquable
 
             TableColumn("Type", value: \.kindSortKey) { job in
                 Label(job.kind.label, systemImage: job.kind.icon)
@@ -439,6 +450,7 @@ struct StatusDot: View {
             .foregroundStyle(color)
             .help(helpText)
             .imageScale(.small)
+            .accessibilityLabel(helpText)
     }
 
     private var symbol: String {

@@ -88,18 +88,32 @@ enum JobActions {
         var entries: [TrashEntry] = []
         var errors: [String] = []
 
-        // Crons : retirer les lignes en une seule réécriture du crontab.
+        // Crons : retirer les lignes effectivement présentes en une seule réécriture du crontab.
+        // On ne crée une entrée de corbeille que pour les lignes réellement retirées : si le crontab
+        // a changé entre le scan et l'action, on n'enregistre pas un cron qui n'a pas été supprimé.
         let crons = jobs.filter { $0.kind == .cron }
         if !crons.isEmpty {
-            let r = rewriteCrontab { removeCron($0, crons) }
-            if r.ok {
-                for job in crons {
-                    entries.append(TrashEntry(
-                        id: UUID().uuidString, date: Date(), displayName: job.displayName,
-                        kind: .cron, scope: job.scope, label: nil, originalPath: nil,
-                        cronLine: job.rawContent, blobFile: nil, mode: nil, uid: nil, gid: nil))
+            var lines = readCrontab().components(separatedBy: "\n")
+            var removed: [ScheduledJob] = []
+            for job in crons {
+                if let idx = lines.firstIndex(of: job.rawContent) {
+                    lines.remove(at: idx)
+                    removed.append(job)
                 }
-            } else { errors.append(r.message) }
+            }
+            if removed.isEmpty {
+                errors.append("Cron introuvable dans le crontab (modifié entre-temps ?).")
+            } else {
+                let r = writeCrontab(lines)
+                if r.ok {
+                    for job in removed {
+                        entries.append(TrashEntry(
+                            id: UUID().uuidString, date: Date(), displayName: job.displayName,
+                            kind: .cron, scope: job.scope, label: nil, originalPath: nil,
+                            cronLine: job.rawContent, blobFile: nil, mode: nil, uid: nil, gid: nil))
+                    }
+                } else { errors.append(r.message) }
+            }
         }
 
         // launchd : sauvegarder les octets + commandes (bootout best-effort, rm fait foi).
@@ -203,18 +217,13 @@ enum JobActions {
 
     private static func rewriteCrontab(_ transform: ([String]) -> [String]) -> Outcome {
         let lines = readCrontab().components(separatedBy: "\n")
-        let text = transform(lines).joined(separator: "\n")
-        let out = Shell.capture("/usr/bin/crontab", ["-"], stdin: text)
-        return Outcome(ok: out.code == 0,
-                       message: out.code == 0 ? "OK" : (out.stderr.isEmpty ? "Écriture du crontab impossible." : out.stderr))
+        return writeCrontab(transform(lines))
     }
 
-    private static func removeCron(_ lines: [String], _ jobs: [ScheduledJob]) -> [String] {
-        var result = lines
-        for job in jobs {
-            if let idx = result.firstIndex(of: job.rawContent) { result.remove(at: idx) }
-        }
-        return result
+    private static func writeCrontab(_ lines: [String]) -> Outcome {
+        let out = Shell.capture("/usr/bin/crontab", ["-"], stdin: lines.joined(separator: "\n"))
+        return Outcome(ok: out.code == 0,
+                       message: out.code == 0 ? "OK" : (out.stderr.isEmpty ? "Écriture du crontab impossible." : out.stderr))
     }
 
     private static func toggleCron(_ lines: [String], _ jobs: [ScheduledJob], enabled: Bool) -> [String] {

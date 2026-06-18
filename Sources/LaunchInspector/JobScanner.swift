@@ -93,10 +93,14 @@ enum JobScanner {
         }
         guard !requests.isEmpty else { return }
 
-        // Écritures sur des indices disjoints → sûr ; `nonisolated(unsafe)` lève le contrôle Sendable.
-        nonisolated(unsafe) var results = [PrintInfo](repeating: PrintInfo(), count: requests.count)
-        DispatchQueue.concurrentPerform(iterations: requests.count) { k in
-            results[k] = printInfo(domain: requests[k].domain, label: requests[k].label)
+        // Écritures sur des indices disjoints → sûr. Le buffer mutable exprime cet invariant au
+        // compilateur ; `nonisolated(unsafe)` lève le contrôle Sendable sur le pointeur partagé.
+        var results = [PrintInfo](repeating: PrintInfo(), count: requests.count)
+        results.withUnsafeMutableBufferPointer { buffer in
+            nonisolated(unsafe) let buffer = buffer
+            DispatchQueue.concurrentPerform(iterations: buffer.count) { k in
+                buffer[k] = printInfo(domain: requests[k].domain, label: requests[k].label)
+            }
         }
 
         for (k, req) in requests.enumerated() {
@@ -434,7 +438,8 @@ enum JobScanner {
         guard !output.isEmpty else { return [] }
 
         var jobs: [ScheduledJob] = []
-        for (index, rawLine) in output.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
+        var seenKeys: [String: Int] = [:]
+        for rawLine in output.split(separator: "\n", omittingEmptySubsequences: false) {
             let line = rawLine.trimmingCharacters(in: .whitespaces)
             if line.isEmpty { continue }
 
@@ -448,13 +453,18 @@ enum JobScanner {
 
             let (schedule, command) = splitCron(working)
             let displayName = command.isEmpty ? schedule : command
+            // ID dérivé du contenu (≠ position) → la sélection survit à un réordonnancement du crontab.
+            // Suffixe d'occurrence pour distinguer deux lignes strictement identiques.
+            let configKey = "cron: \(schedule) \(command)"
+            let occurrence = seenKeys[configKey, default: 0]
+            seenKeys[configKey] = occurrence + 1
             jobs.append(ScheduledJob(
-                id: "cron-\(index)",
+                id: occurrence == 0 ? configKey : "\(configKey)#\(occurrence)",
                 name: displayName,
                 label: nil,
                 kind: .cron,
                 scope: .user,
-                configKey: "cron: \(schedule) \(command)",
+                configKey: configKey,
                 sourceLabel: "crontab (utilisateur)",
                 path: nil,
                 symlinkTarget: nil,

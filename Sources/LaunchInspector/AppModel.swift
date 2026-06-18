@@ -30,9 +30,10 @@ final class AppModel {
     // MARK: - Cycle de rafraîchissement
 
     /// Scanne le statut (toujours) et recharge la config si le fichier a changé sur disque.
-    func refresh() async {
-        isScanning = true
-        defer { isScanning = false }
+    /// `userInitiated == false` (poll de fond) n'allume pas l'indicateur de scan → pas de flicker.
+    func refresh(userInitiated: Bool = true) async {
+        if userInitiated { isScanning = true }
+        defer { if userInitiated { isScanning = false } }
 
         rawJobs = await Task.detached(priority: .userInitiated) {
             JobScanner.scanAll()
@@ -83,7 +84,8 @@ final class AppModel {
         if changed { saveConfig() }
     }
 
-    private func saveConfig() {
+    /// Écrit la config sur disque sans re-fusionner (l'UI lit `config` directement, via observation).
+    private func persistConfig() {
         try? FileManager.default.createDirectory(
             at: Self.configURL.deletingLastPathComponent(),
             withIntermediateDirectories: true)
@@ -92,6 +94,12 @@ final class AppModel {
         guard let data = try? encoder.encode(config) else { return }
         try? data.write(to: Self.configURL)
         configMtime = modificationDate() // évite que le poll suivant recharge et écrase l'édition
+    }
+
+    /// Persiste + ré-applique la config aux jobs. À utiliser dès qu'un changement affecte l'affichage
+    /// des jobs (nom, description, groupe, masquage). Pour un simple état d'UI, préférer `persistConfig`.
+    private func saveConfig() {
+        persistConfig()
         merge()
     }
 
@@ -204,18 +212,20 @@ final class AppModel {
 
     func setGroupCollapsed(_ id: String, _ collapsed: Bool) {
         guard let index = config.groups.firstIndex(where: { $0.id == id }) else { return }
-        config.groups[index].collapsed = collapsed
-        saveConfig()
+        var group = config.groups[index]
+        group.collapsed = collapsed
+        config.groups[index] = group
+        persistConfig() // état d'UI pur → pas de re-fusion des jobs
     }
 
     func setUngroupedCollapsed(_ collapsed: Bool) {
         config.ungroupedCollapsed = collapsed
-        saveConfig()
+        persistConfig()
     }
 
     func setHiddenCollapsed(_ collapsed: Bool) {
         config.hiddenCollapsed = collapsed
-        saveConfig()
+        persistConfig()
     }
 
     private func uniqueGroupID(from name: String) -> String {
