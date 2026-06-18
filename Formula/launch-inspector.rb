@@ -17,8 +17,8 @@
 class LaunchInspector < Formula
   desc "macOS app that lists your cron jobs and launchd plists, with state and schedule"
   homepage "https://github.com/vincentbattez/launchs-and-crons-inspector"
-  url "https://github.com/vincentbattez/launchs-and-crons-inspector/archive/refs/tags/v0.1.0.tar.gz"
-  sha256 "6fb0fae98ff95b4a4319acc5072b69b695fd2c8c3f0b9841b54d32fa3750d247"
+  url "https://github.com/vincentbattez/launchs-and-crons-inspector/archive/refs/tags/v0.2.0.tar.gz"
+  sha256 "933d50cc7b381cf496cd3a62e722b1a2bb8b99fa44cd91ee7ea27f9c37654c98"
   license "MIT"
   head "https://github.com/vincentbattez/launchs-and-crons-inspector.git", branch: "main"
 
